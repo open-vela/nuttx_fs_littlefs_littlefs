@@ -194,125 +194,76 @@ tests/test.py << TEST
     lfs_file_read(&lfs, &file[0], buffer, size) => size;
     memcmp(buffer, "exhaustion", size) => 0;
     lfs_file_close(&lfs, &file[0]) => 0;
-    lfs_remove(&lfs, "exhaustion") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
 
 echo "--- Dir exhaustion test ---"
 tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
+    lfs_remove(&lfs, "exhaustion") => 0;
 
-    // find out max file size
-    lfs_mkdir(&lfs, "exhaustiondir") => 0;
+    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
-    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
-    int count = 0;
-    int err;
-    while (true) {
-        err = lfs_file_write(&lfs, &file[0], buffer, size);
-        if (err < 0) {
-            break;
-        }
-
-        count += 1;
-    }
-    err => LFS_ERR_NOSPC;
-    lfs_file_close(&lfs, &file[0]) => 0;
-
-    lfs_remove(&lfs, "exhaustion") => 0;
-    lfs_remove(&lfs, "exhaustiondir") => 0;
-
-    // see if dir fits with max file size
-    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
-    for (int i = 0; i < count; i++) {
+    for (lfs_size_t i = 0;
+            i < (cfg.block_count-6)*(cfg.block_size-8);
+            i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
     lfs_file_close(&lfs, &file[0]) => 0;
 
     lfs_mkdir(&lfs, "exhaustiondir") => 0;
     lfs_remove(&lfs, "exhaustiondir") => 0;
-    lfs_remove(&lfs, "exhaustion") => 0;
 
-    // see if dir fits with > max file size
-    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
-    for (int i = 0; i < count+1; i++) {
+    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_APPEND);
+    size = strlen("blahblahblahblah");
+    memcpy(buffer, "blahblahblahblah", size);
+    for (lfs_size_t i = 0;
+            i < (cfg.block_size-8);
+            i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
     lfs_file_close(&lfs, &file[0]) => 0;
 
     lfs_mkdir(&lfs, "exhaustiondir") => LFS_ERR_NOSPC;
-
-    lfs_remove(&lfs, "exhaustion") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
 
 echo "--- Chained dir exhaustion test ---"
 tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
+    lfs_remove(&lfs, "exhaustion") => 0;
 
-    // find out max file size
-    lfs_mkdir(&lfs, "exhaustiondir") => 0;
-    for (int i = 0; i < 10; i++) {
-        sprintf((char*)buffer, "dirwithanexhaustivelylongnameforpadding%d", i);
-        lfs_mkdir(&lfs, (char*)buffer) => 0;
-    }
+    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
-    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
-    int count = 0;
-    int err;
-    while (true) {
-        err = lfs_file_write(&lfs, &file[0], buffer, size);
-        if (err < 0) {
-            break;
-        }
-
-        count += 1;
-    }
-    err => LFS_ERR_NOSPC;
-    lfs_file_close(&lfs, &file[0]) => 0;
-
-    lfs_remove(&lfs, "exhaustion") => 0;
-    lfs_remove(&lfs, "exhaustiondir") => 0;
-    for (int i = 0; i < 10; i++) {
-        sprintf((char*)buffer, "dirwithanexhaustivelylongnameforpadding%d", i);
-        lfs_remove(&lfs, (char*)buffer) => 0;
-    }
-
-    // see that chained dir fails
-    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
-    for (int i = 0; i < count+1; i++) {
+    for (lfs_size_t i = 0;
+            i < (cfg.block_count-24)*(cfg.block_size-8);
+            i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
-    lfs_file_sync(&lfs, &file[0]) => 0;
+    lfs_file_close(&lfs, &file[0]) => 0;
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 9; i++) {
         sprintf((char*)buffer, "dirwithanexhaustivelylongnameforpadding%d", i);
         lfs_mkdir(&lfs, (char*)buffer) => 0;
     }
 
     lfs_mkdir(&lfs, "exhaustiondir") => LFS_ERR_NOSPC;
 
-    // shorten file to try a second chained dir
-    while (true) {
-        err = lfs_mkdir(&lfs, "exhaustiondir");
-        if (err != LFS_ERR_NOSPC) {
-            break;
-        }
-
-        lfs_ssize_t filesize = lfs_file_size(&lfs, &file[0]);
-        filesize > 0 => true;
-
-        lfs_file_truncate(&lfs, &file[0], filesize - size) => 0;
-        lfs_file_sync(&lfs, &file[0]) => 0;
+    lfs_remove(&lfs, "exhaustion") => 0;
+    lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
+    size = strlen("blahblahblahblah");
+    memcpy(buffer, "blahblahblahblah", size);
+    for (lfs_size_t i = 0;
+            i < (cfg.block_count-26)*(cfg.block_size-8);
+            i += size) {
+        lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
-    err => 0;
-
-    lfs_mkdir(&lfs, "exhaustiondir2") => LFS_ERR_NOSPC;
-
     lfs_file_close(&lfs, &file[0]) => 0;
-    lfs_unmount(&lfs) => 0;
+
+    lfs_mkdir(&lfs, "exhaustiondir") => 0;
+    lfs_mkdir(&lfs, "exhaustiondir2") => LFS_ERR_NOSPC;
 TEST
 
 echo "--- Split dir test ---"
@@ -323,27 +274,20 @@ TEST
 tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
 
-    // create one block hole for half a directory
+    // create one block whole for half a directory
     lfs_file_open(&lfs, &file[0], "bump", LFS_O_WRONLY | LFS_O_CREAT) => 0;
-    for (lfs_size_t i = 0; i < cfg.block_size; i += 2) {
-        memcpy(&buffer[i], "hi", 2);
-    }
-    lfs_file_write(&lfs, &file[0], buffer, cfg.block_size) => cfg.block_size;
+    lfs_file_write(&lfs, &file[0], (void*)"hi", 2) => 2;
     lfs_file_close(&lfs, &file[0]) => 0;
 
     lfs_file_open(&lfs, &file[0], "exhaustion", LFS_O_WRONLY | LFS_O_CREAT);
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < (cfg.block_count-4)*(cfg.block_size-8);
+            i < (cfg.block_count-6)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
     lfs_file_close(&lfs, &file[0]) => 0;
-
-    // remount to force reset of lookahead
-    lfs_unmount(&lfs) => 0;
-    lfs_mount(&lfs, &cfg) => 0;
 
     // open hole
     lfs_remove(&lfs, "bump") => 0;
@@ -351,10 +295,7 @@ tests/test.py << TEST
     lfs_mkdir(&lfs, "splitdir") => 0;
     lfs_file_open(&lfs, &file[0], "splitdir/bump",
             LFS_O_WRONLY | LFS_O_CREAT) => 0;
-    for (lfs_size_t i = 0; i < cfg.block_size; i += 2) {
-        memcpy(&buffer[i], "hi", 2);
-    }
-    lfs_file_write(&lfs, &file[0], buffer, 2*cfg.block_size) => LFS_ERR_NOSPC;
+    lfs_file_write(&lfs, &file[0], buffer, size) => LFS_ERR_NOSPC;
     lfs_file_close(&lfs, &file[0]) => 0;
 
     lfs_unmount(&lfs) => 0;
@@ -373,7 +314,7 @@ tests/test.py << TEST
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < ((cfg.block_count-2)/2)*(cfg.block_size-8);
+            i < ((cfg.block_count-4)/2)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
@@ -384,7 +325,7 @@ tests/test.py << TEST
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < ((cfg.block_count-2+1)/2)*(cfg.block_size-8);
+            i < ((cfg.block_count-4+1)/2)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
@@ -392,6 +333,7 @@ tests/test.py << TEST
 
     // remount to force reset of lookahead
     lfs_unmount(&lfs) => 0;
+
     lfs_mount(&lfs, &cfg) => 0;
 
     // rewrite one file
@@ -401,7 +343,7 @@ tests/test.py << TEST
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < ((cfg.block_count-2)/2)*(cfg.block_size-8);
+            i < ((cfg.block_count-4)/2)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
@@ -415,7 +357,7 @@ tests/test.py << TEST
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < ((cfg.block_count-2+1)/2)*(cfg.block_size-8);
+            i < ((cfg.block_count-4+1)/2)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
@@ -435,7 +377,7 @@ tests/test.py << TEST
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < ((cfg.block_count-2)/2)*(cfg.block_size-8);
+            i < ((cfg.block_count-4)/2)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
@@ -446,7 +388,7 @@ tests/test.py << TEST
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < ((cfg.block_count-2+1)/2)*(cfg.block_size-8);
+            i < ((cfg.block_count-4+1)/2)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
@@ -454,6 +396,7 @@ tests/test.py << TEST
 
     // remount to force reset of lookahead
     lfs_unmount(&lfs) => 0;
+
     lfs_mount(&lfs, &cfg) => 0;
 
     // rewrite one file with a hole of one block
@@ -463,7 +406,7 @@ tests/test.py << TEST
     size = strlen("blahblahblahblah");
     memcpy(buffer, "blahblahblahblah", size);
     for (lfs_size_t i = 0;
-            i < ((cfg.block_count-2)/2 - 1)*(cfg.block_size-8);
+            i < ((cfg.block_count-4)/2 - 1)*(cfg.block_size-8);
             i += size) {
         lfs_file_write(&lfs, &file[0], buffer, size) => size;
     }
