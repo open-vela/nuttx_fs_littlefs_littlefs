@@ -71,25 +71,24 @@ echo "--- Sanity check ---"
 rm -rf blocks
 lfs_mktree
 lfs_chktree
-BLOCKS="$(ls blocks | grep -vw '[01]')"
 
 echo "--- Block corruption ---"
-for b in $BLOCKS
+for i in {0..33}
 do 
     rm -rf blocks
     mkdir blocks
-    ln -s /dev/zero blocks/$b
+    ln -s /dev/zero blocks/$(printf '%x' $i)
     lfs_mktree
     lfs_chktree
 done
 
 echo "--- Block persistance ---"
-for b in $BLOCKS
+for i in {0..33}
 do 
     rm -rf blocks
     mkdir blocks
     lfs_mktree
-    chmod a-w blocks/$b || true
+    chmod a-w blocks/$(printf '%x' $i)
     lfs_mktree
     lfs_chktree
 done
@@ -97,7 +96,7 @@ done
 echo "--- Big region corruption ---"
 rm -rf blocks
 mkdir blocks
-for i in {2..512}
+for i in {2..255}
 do
     ln -s /dev/zero blocks/$(printf '%x' $i)
 done
@@ -107,7 +106,7 @@ lfs_chktree
 echo "--- Alternating corruption ---"
 rm -rf blocks
 mkdir blocks
-for i in {2..1024..2}
+for i in {2..511..2}
 do
     ln -s /dev/zero blocks/$(printf '%x' $i)
 done
