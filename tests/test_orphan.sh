@@ -15,29 +15,25 @@ tests/test.py << TEST
     lfs_mkdir(&lfs, "parent/child") => 0;
     lfs_remove(&lfs, "parent/orphan") => 0;
 TEST
-# corrupt most recent commit, this should be the update to the previous
+# remove most recent file, this should be the update to the previous
 # linked-list entry and should orphan the child
-tests/corrupt.py
+rm -v blocks/8
 tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
+    lfs_stat(&lfs, "parent/orphan", &info) => LFS_ERR_NOENT;
+    unsigned before = 0;
+    lfs_traverse(&lfs, test_count, &before) => 0;
+    test_log("before", before);
+
+    lfs_deorphan(&lfs) => 0;
 
     lfs_stat(&lfs, "parent/orphan", &info) => LFS_ERR_NOENT;
-    lfs_ssize_t before = lfs_fs_size(&lfs);
-    before => 8;
+    unsigned after = 0;
+    lfs_traverse(&lfs, test_count, &after) => 0;
+    test_log("after", after);
 
-    lfs_unmount(&lfs) => 0;
-    lfs_mount(&lfs, &cfg) => 0;
-
-    lfs_stat(&lfs, "parent/orphan", &info) => LFS_ERR_NOENT;
-    lfs_ssize_t orphaned = lfs_fs_size(&lfs);
-    orphaned => 8;
-
-    lfs_mkdir(&lfs, "parent/otherchild") => 0;
-
-    lfs_stat(&lfs, "parent/orphan", &info) => LFS_ERR_NOENT;
-    lfs_ssize_t deorphaned = lfs_fs_size(&lfs);
-    deorphaned => 8;
-
+    int diff = before - after;
+    diff => 2;
     lfs_unmount(&lfs) => 0;
 TEST
 

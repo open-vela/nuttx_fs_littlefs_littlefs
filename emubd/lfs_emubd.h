@@ -46,10 +46,6 @@ typedef struct lfs_emubd {
     } stats;
 
     struct {
-        lfs_block_t blocks[4];
-    } history;
-
-    struct {
         uint32_t read_size;
         uint32_t prog_size;
         uint32_t block_size;
