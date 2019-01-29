@@ -49,7 +49,8 @@ const struct lfs_config cfg = {
     .prog_size = 16,
     .block_size = 4096,
     .block_count = 128,
-    .lookahead = 128,
+    .cache_size = 16,
+    .lookahead_size = 16,
 };
 
 // entry point
@@ -111,9 +112,9 @@ filesystem until sync or close is called on the file.
 
 ## Other notes
 
-All littlefs calls have the potential to return a negative error code. The 
-errors can be either one of those found in the `enum lfs_error` in 
-[lfs.h](lfs.h), or an error returned by the user's block device operations.
+All littlefs have the potential to return a negative error code. The errors
+can be either one of those found in the `enum lfs_error` in [lfs.h](lfs.h),
+or an error returned by the user's block device operations.
 
 In the configuration struct, the `prog` and `erase` function provided by the
 user may return a `LFS_ERR_CORRUPT` error if the implementation already can
