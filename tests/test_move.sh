@@ -3,7 +3,7 @@ set -eu
 
 echo "=== Move tests ==="
 rm -rf blocks
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
 
     lfs_mount(&lfs, &cfg) => 0;
@@ -26,12 +26,12 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move file ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "a/hello", "b/hello") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "a") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -54,13 +54,13 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move file corrupt source ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "b/hello", "c/hello") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/corrupt.py -n 1
-scripts/test.py << TEST
+tests/corrupt.py -n 1
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "b") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -81,13 +81,13 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move file corrupt source and dest ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "c/hello", "d/hello") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/corrupt.py -n 2
-scripts/test.py << TEST
+tests/corrupt.py -n 2
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "c") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -108,12 +108,12 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move file after corrupt ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "c/hello", "d/hello") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "c") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -134,12 +134,12 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move dir ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "a/hi", "b/hi") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "a") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -160,13 +160,13 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move dir corrupt source ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "b/hi", "c/hi") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/corrupt.py -n 1
-scripts/test.py << TEST
+tests/corrupt.py -n 1
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "b") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -187,13 +187,13 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move dir corrupt source and dest ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "c/hi", "d/hi") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/corrupt.py -n 2
-scripts/test.py << TEST
+tests/corrupt.py -n 2
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "c") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -216,12 +216,12 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move dir after corrupt ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "c/hi", "d/hi") => 0;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "c") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -244,7 +244,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move check ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
 
     lfs_dir_open(&lfs, &dir[0], "a/hi") => LFS_ERR_NOENT;
@@ -282,7 +282,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Move state stealing ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
 
     lfs_remove(&lfs, "b") => 0;
@@ -290,7 +290,7 @@ scripts/test.py << TEST
 
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
 
     lfs_dir_open(&lfs, &dir[0], "a/hi") => LFS_ERR_NOENT;
@@ -329,4 +329,4 @@ TEST
 
 
 echo "--- Results ---"
-scripts/stats.py
+tests/stats.py

@@ -7,12 +7,12 @@ LARGESIZE=262144
 
 echo "=== File tests ==="
 rm -rf blocks
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
 TEST
 
 echo "--- Simple file test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello", LFS_O_WRONLY | LFS_O_CREAT) => 0;
     size = strlen("Hello World!\n");
@@ -29,7 +29,7 @@ scripts/test.py << TEST
 TEST
 
 w_test() {
-scripts/test.py ${4:-} << TEST
+tests/test.py ${4:-} << TEST
     size = $1;
     lfs_size_t chunk = 31;
     srand(0);
@@ -49,7 +49,7 @@ TEST
 }
 
 r_test() {
-scripts/test.py << TEST
+tests/test.py << TEST
     size = $1;
     lfs_size_t chunk = 29;
     srand(0);
@@ -105,7 +105,7 @@ r_test $LARGESIZE largeavacado
 r_test 0 noavacado
 
 echo "--- Dir check ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "/") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -136,10 +136,10 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Many file test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     // Create 300 files of 6 bytes
     lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "directory") => 0;
@@ -155,4 +155,4 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Results ---"
-scripts/stats.py
+tests/stats.py

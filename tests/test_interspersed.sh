@@ -3,12 +3,12 @@ set -eu
 
 echo "=== Interspersed tests ==="
 rm -rf blocks
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
 TEST
 
 echo "--- Interspersed file test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "a", LFS_O_WRONLY | LFS_O_CREAT) => 0;
     lfs_file_open(&lfs, &file[1], "b", LFS_O_WRONLY | LFS_O_CREAT) => 0;
@@ -78,7 +78,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Interspersed remove file test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "e", LFS_O_WRONLY | LFS_O_CREAT) => 0;
 
@@ -124,7 +124,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Remove inconveniently test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "e", LFS_O_WRONLY | LFS_O_TRUNC) => 0;
     lfs_file_open(&lfs, &file[1], "f", LFS_O_WRONLY | LFS_O_CREAT) => 0;
@@ -183,4 +183,4 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Results ---"
-scripts/stats.py
+tests/stats.py

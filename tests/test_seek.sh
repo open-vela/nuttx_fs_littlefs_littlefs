@@ -7,7 +7,7 @@ LARGESIZE=132
 
 echo "=== Seek tests ==="
 rm -rf blocks
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
     lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "hello") => 0;
@@ -28,7 +28,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Simple dir seek ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "hello") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -70,7 +70,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Large dir seek ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir[0], "hello") => 0;
     lfs_dir_read(&lfs, &dir[0], &info) => 1;
@@ -112,7 +112,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Simple file seek ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello/kitty042", LFS_O_RDONLY) => 0;
 
@@ -161,7 +161,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Large file seek ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello/kitty042", LFS_O_RDONLY) => 0;
 
@@ -210,7 +210,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Simple file seek and write ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello/kitty042", LFS_O_RDWR) => 0;
 
@@ -251,7 +251,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Large file seek and write ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello/kitty042", LFS_O_RDWR) => 0;
 
@@ -294,7 +294,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Boundary seek and write ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello/kitty042", LFS_O_RDWR) => 0;
 
@@ -322,7 +322,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Out-of-bounds seek ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello/kitty042", LFS_O_RDWR) => 0;
 
@@ -360,7 +360,7 @@ TEST
 echo "--- Inline write and seek ---"
 for SIZE in $SMALLSIZE $MEDIUMSIZE $LARGESIZE
 do
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_file_open(&lfs, &file[0], "hello/tinykitty$SIZE",
             LFS_O_RDWR | LFS_O_CREAT) => 0;
@@ -426,4 +426,4 @@ TEST
 done
 
 echo "--- Results ---"
-scripts/stats.py
+tests/stats.py
