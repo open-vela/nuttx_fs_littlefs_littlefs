@@ -3,7 +3,7 @@ set -eu
 
 echo "=== Attr tests ==="
 rm -rf blocks
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
 
     lfs_mount(&lfs, &cfg) => 0;
@@ -17,7 +17,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Set/get attribute ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_setattr(&lfs, "hello", 'A', "aaaa",   4) => 0;
     lfs_setattr(&lfs, "hello", 'B', "bbbbbb", 6) => 0;
@@ -69,7 +69,7 @@ scripts/test.py << TEST
 
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_getattr(&lfs, "hello", 'A', buffer,    4) => 4;
     lfs_getattr(&lfs, "hello", 'B', buffer+4,  9) => 9;
@@ -86,7 +86,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Set/get root attribute ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_setattr(&lfs, "/", 'A', "aaaa",   4) => 0;
     lfs_setattr(&lfs, "/", 'B', "bbbbbb", 6) => 0;
@@ -137,7 +137,7 @@ scripts/test.py << TEST
     lfs_getattr(&lfs, "/", 'C', buffer+10, 5) => 5;
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_getattr(&lfs, "/", 'A', buffer,    4) => 4;
     lfs_getattr(&lfs, "/", 'B', buffer+4,  9) => 9;
@@ -154,7 +154,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Set/get file attribute ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     struct lfs_attr attrs1[] = {
         {'A', buffer,    4},
@@ -229,7 +229,7 @@ scripts/test.py << TEST
 
     lfs_unmount(&lfs) => 0;
 TEST
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     struct lfs_attr attrs2[] = {
         {'A', buffer,    4},
@@ -252,7 +252,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Deferred file attributes ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     struct lfs_attr attrs1[] = {
         {'B', "gggg", 4},
@@ -283,4 +283,4 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Results ---"
-scripts/stats.py
+tests/stats.py

@@ -3,11 +3,11 @@ set -eu
 
 echo "=== Path tests ==="
 rm -rf blocks
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
 TEST
 
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "tea") => 0;
     lfs_mkdir(&lfs, "coffee") => 0;
@@ -25,7 +25,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Root path tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_stat(&lfs, "tea/hottea", &info) => 0;
     strcmp(info.name, "hottea") => 0;
@@ -39,7 +39,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Redundant slash path tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_stat(&lfs, "/tea/hottea", &info) => 0;
     strcmp(info.name, "hottea") => 0;
@@ -55,7 +55,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Dot path tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_stat(&lfs, "./tea/hottea", &info) => 0;
     strcmp(info.name, "hottea") => 0;
@@ -73,7 +73,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Dot dot path tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_stat(&lfs, "coffee/../tea/hottea", &info) => 0;
     strcmp(info.name, "hottea") => 0;
@@ -91,7 +91,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Trailing dot path tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_stat(&lfs, "tea/hottea/", &info) => 0;
     strcmp(info.name, "hottea") => 0;
@@ -107,7 +107,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Root dot dot path tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_stat(&lfs, "coffee/../../../../../../tea/hottea", &info) => 0;
     strcmp(info.name, "hottea") => 0;
@@ -119,7 +119,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Root tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_stat(&lfs, "/", &info) => 0;
     info.type => LFS_TYPE_DIR;
@@ -140,7 +140,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Sketchy path tests ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "dirt/ground") => LFS_ERR_NOENT;
     lfs_mkdir(&lfs, "dirt/ground/earth") => LFS_ERR_NOENT;
@@ -148,7 +148,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Superblock conflict test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "littlefs") => 0;
     lfs_remove(&lfs, "littlefs") => 0;
@@ -156,7 +156,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Max path test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 'w', LFS_NAME_MAX+1);
     buffer[LFS_NAME_MAX+2] = '\0';
@@ -174,7 +174,7 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Really big path test ---"
-scripts/test.py << TEST
+tests/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 'w', LFS_NAME_MAX);
     buffer[LFS_NAME_MAX+1] = '\0';
@@ -198,4 +198,4 @@ scripts/test.py << TEST
 TEST
 
 echo "--- Results ---"
-scripts/stats.py
+tests/stats.py
