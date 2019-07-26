@@ -136,7 +136,6 @@ enum lfs_open_flags {
     LFS_F_READING = 0x040000, // File has been read since last flush
     LFS_F_ERRED   = 0x080000, // An error occured during write
     LFS_F_INLINE  = 0x100000, // Currently inlined in directory entry
-    LFS_F_OPENED  = 0x200000, // File has been opened
 };
 
 // File seek flags
@@ -205,7 +204,7 @@ struct lfs_config {
     // Size of the lookahead buffer in bytes. A larger lookahead buffer
     // increases the number of blocks found during an allocation pass. The
     // lookahead buffer is stored as a compact bitmap, so each byte of RAM
-    // can track 8 blocks. Must be a multiple of 8.
+    // can track 8 blocks. Must be a multiple of 4.
     lfs_size_t lookahead_size;
 
     // Optional statically allocated read buffer. Must be cache_size.
@@ -217,7 +216,7 @@ struct lfs_config {
     void *prog_buffer;
 
     // Optional statically allocated lookahead buffer. Must be lookahead_size
-    // and aligned to a 32-bit boundary. By default lfs_malloc is used to
+    // and aligned to a 64-bit boundary. By default lfs_malloc is used to
     // allocate this buffer.
     void *lookahead_buffer;
 
