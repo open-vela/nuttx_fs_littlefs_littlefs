@@ -71,21 +71,6 @@ static int lfs_bd_read(lfs_t *lfs,
             diff = lfs_min(diff, rcache->off-off);
         }
 
-        if (size >= hint && off % lfs->cfg->read_size == 0 &&
-                size >= lfs->cfg->read_size) {
-            // bypass cache?
-            diff = lfs_aligndown(diff, lfs->cfg->read_size);
-            int err = lfs->cfg->read(lfs->cfg, block, off, data, diff);
-            if (err) {
-                return err;
-            }
-
-            data += diff;
-            off += diff;
-            size -= diff;
-            continue;
-        }
-
         // load to cache, first condition can no longer fail
         LFS_ASSERT(block < lfs->cfg->block_count);
         rcache->block = block;
@@ -3383,12 +3368,6 @@ int lfs_removeattr(lfs_t *lfs, const char *path, uint8_t type) {
 static int lfs_init(lfs_t *lfs, const struct lfs_config *cfg) {
     lfs->cfg = cfg;
     int err = 0;
-
-    // validate that the lfs-cfg sizes were initiated properly before
-    // performing any arithmetic logics with them
-    LFS_ASSERT(lfs->cfg->read_size != 0);
-    LFS_ASSERT(lfs->cfg->prog_size != 0);
-    LFS_ASSERT(lfs->cfg->cache_size != 0);
 
     // check that block size is a multiple of cache size is a multiple
     // of prog and read sizes
