@@ -1,13 +1,25 @@
-[[case]] # set/get attribute
-code = '''
+#!/bin/bash
+set -eu
+export TEST_FILE=$0
+trap 'export TEST_LINE=$LINENO' DEBUG
+
+echo "=== Attr tests ==="
+rm -rf blocks
+scripts/test.py << TEST
     lfs_format(&lfs, &cfg) => 0;
+
     lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "hello") => 0;
-    lfs_file_open(&lfs, &file, "hello/hello", LFS_O_WRONLY | LFS_O_CREAT) => 0;
-    lfs_file_write(&lfs, &file, "hello", strlen("hello")) => strlen("hello");
+    lfs_file_open(&lfs, &file, "hello/hello",
+            LFS_O_WRONLY | LFS_O_CREAT) => 0;
+    lfs_file_write(&lfs, &file, "hello", strlen("hello"))
+            => strlen("hello");
     lfs_file_close(&lfs, &file);
     lfs_unmount(&lfs) => 0;
+TEST
 
+echo "--- Set/get attribute ---"
+scripts/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 0, sizeof(buffer));
     lfs_setattr(&lfs, "hello", 'A', "aaaa",   4) => 0;
@@ -59,7 +71,8 @@ code = '''
     lfs_getattr(&lfs, "hello", 'C', buffer+10, 5) => 5;
 
     lfs_unmount(&lfs) => 0;
-
+TEST
+scripts/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 0, sizeof(buffer));
     lfs_getattr(&lfs, "hello", 'A', buffer,    4) => 4;
@@ -74,18 +87,10 @@ code = '''
     memcmp(buffer, "hello", strlen("hello")) => 0;
     lfs_file_close(&lfs, &file);
     lfs_unmount(&lfs) => 0;
-'''
+TEST
 
-[[case]] # set/get root attribute
-code = '''
-    lfs_format(&lfs, &cfg) => 0;
-    lfs_mount(&lfs, &cfg) => 0;
-    lfs_mkdir(&lfs, "hello") => 0;
-    lfs_file_open(&lfs, &file, "hello/hello", LFS_O_WRONLY | LFS_O_CREAT) => 0;
-    lfs_file_write(&lfs, &file, "hello", strlen("hello")) => strlen("hello");
-    lfs_file_close(&lfs, &file);
-    lfs_unmount(&lfs) => 0;
-
+echo "--- Set/get root attribute ---"
+scripts/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 0, sizeof(buffer));
     lfs_setattr(&lfs, "/", 'A', "aaaa",   4) => 0;
@@ -136,7 +141,8 @@ code = '''
     lfs_getattr(&lfs, "/", 'B', buffer+4,  6) => 9;
     lfs_getattr(&lfs, "/", 'C', buffer+10, 5) => 5;
     lfs_unmount(&lfs) => 0;
-
+TEST
+scripts/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 0, sizeof(buffer));
     lfs_getattr(&lfs, "/", 'A', buffer,    4) => 4;
@@ -151,18 +157,10 @@ code = '''
     memcmp(buffer, "hello", strlen("hello")) => 0;
     lfs_file_close(&lfs, &file);
     lfs_unmount(&lfs) => 0;
-'''
+TEST
 
-[[case]] # set/get file attribute
-code = '''
-    lfs_format(&lfs, &cfg) => 0;
-    lfs_mount(&lfs, &cfg) => 0;
-    lfs_mkdir(&lfs, "hello") => 0;
-    lfs_file_open(&lfs, &file, "hello/hello", LFS_O_WRONLY | LFS_O_CREAT) => 0;
-    lfs_file_write(&lfs, &file, "hello", strlen("hello")) => strlen("hello");
-    lfs_file_close(&lfs, &file);
-    lfs_unmount(&lfs) => 0;
-
+echo "--- Set/get file attribute ---"
+scripts/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 0, sizeof(buffer));
     struct lfs_attr attrs1[] = {
@@ -237,17 +235,18 @@ code = '''
     lfs_file_close(&lfs, &file) => 0;
 
     lfs_unmount(&lfs) => 0;
-
+TEST
+scripts/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
     memset(buffer, 0, sizeof(buffer));
-    struct lfs_attr attrs3[] = {
+    struct lfs_attr attrs2[] = {
         {'A', buffer,    4},
         {'B', buffer+4,  9},
         {'C', buffer+13, 5},
     };
-    struct lfs_file_config cfg3 = {.attrs=attrs3, .attr_count=3};
+    struct lfs_file_config cfg2 = {.attrs=attrs2, .attr_count=3};
 
-    lfs_file_opencfg(&lfs, &file, "hello/hello", LFS_O_RDONLY, &cfg3) => 0;
+    lfs_file_opencfg(&lfs, &file, "hello/hello", LFS_O_RDONLY, &cfg2) => 0;
     lfs_file_close(&lfs, &file) => 0;
     memcmp(buffer,    "aaaa",      4) => 0;
     memcmp(buffer+4,  "fffffffff", 9) => 0;
@@ -258,22 +257,11 @@ code = '''
     memcmp(buffer, "hello", strlen("hello")) => 0;
     lfs_file_close(&lfs, &file);
     lfs_unmount(&lfs) => 0;
-'''
+TEST
 
-[[case]] # deferred file attributes
-code = '''
-    lfs_format(&lfs, &cfg) => 0;
+echo "--- Deferred file attributes ---"
+scripts/test.py << TEST
     lfs_mount(&lfs, &cfg) => 0;
-    lfs_mkdir(&lfs, "hello") => 0;
-    lfs_file_open(&lfs, &file, "hello/hello", LFS_O_WRONLY | LFS_O_CREAT) => 0;
-    lfs_file_write(&lfs, &file, "hello", strlen("hello")) => strlen("hello");
-    lfs_file_close(&lfs, &file);
-    lfs_unmount(&lfs) => 0;
-
-    lfs_mount(&lfs, &cfg) => 0;
-    lfs_setattr(&lfs, "hello/hello", 'B', "fffffffff",  9) => 0;
-    lfs_setattr(&lfs, "hello/hello", 'C', "ccccc",      5) => 0;
-
     memset(buffer, 0, sizeof(buffer));
     struct lfs_attr attrs1[] = {
         {'B', "gggg", 4},
@@ -301,4 +289,6 @@ code = '''
 
     lfs_file_close(&lfs, &file) => 0;
     lfs_unmount(&lfs) => 0;
-'''
+TEST
+
+scripts/results.py
