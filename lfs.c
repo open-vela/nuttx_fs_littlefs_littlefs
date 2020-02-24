@@ -29,7 +29,8 @@ static int lfs_bd_read(lfs_t *lfs,
         lfs_block_t block, lfs_off_t off,
         void *buffer, lfs_size_t size) {
     uint8_t *data = buffer;
-    if ((off+size > lfs->cfg->block_size) || (block == LFS_BLOCK_NULL)) {
+    if (block >= lfs->cfg->block_count ||
+            off+size > lfs->cfg->block_size) {
         return LFS_ERR_CORRUPT;
     }
 
@@ -176,7 +177,7 @@ static int lfs_bd_prog(lfs_t *lfs,
         lfs_block_t block, lfs_off_t off,
         const void *buffer, lfs_size_t size) {
     const uint8_t *data = buffer;
-    LFS_ASSERT(block != LFS_BLOCK_NULL);
+    LFS_ASSERT(block == LFS_BLOCK_INLINE || block < lfs->cfg->block_count);
     LFS_ASSERT(off + size <= lfs->cfg->block_size);
 
     while (size > 0) {
@@ -750,6 +751,12 @@ static lfs_stag_t lfs_dir_fetchmatch(lfs_t *lfs,
     // we can find tag very efficiently during a fetch, since we're already
     // scanning the entire directory
     lfs_stag_t besttag = -1;
+
+    // if either block address is invalid we return LFS_ERR_CORRUPT here,
+    // otherwise later writes to the pair could fail
+    if (pair[0] >= lfs->cfg->block_count || pair[1] >= lfs->cfg->block_count) {
+        return LFS_ERR_CORRUPT;
+    }
 
     // find the block with the most recent revision
     uint32_t revs[2] = {0, 0};
@@ -2200,7 +2207,6 @@ static int lfs_ctz_find(lfs_t *lfs,
             return err;
         }
 
-        LFS_ASSERT(head >= 2 && head <= lfs->cfg->block_count);
         current -= 1 << skip;
     }
 
@@ -2220,7 +2226,6 @@ static int lfs_ctz_extend(lfs_t *lfs,
         if (err) {
             return err;
         }
-        LFS_ASSERT(nblock >= 2 && nblock <= lfs->cfg->block_count);
 
         {
             err = lfs_bd_erase(lfs, nblock);
@@ -2293,8 +2298,6 @@ static int lfs_ctz_extend(lfs_t *lfs,
                         return err;
                     }
                 }
-
-                LFS_ASSERT(nhead >= 2 && nhead <= lfs->cfg->block_count);
             }
 
             *block = nblock;
@@ -3665,7 +3668,15 @@ int lfs_mount(lfs_t *lfs, const struct lfs_config *cfg) {
 
     // scan directory blocks for superblock and any global updates
     lfs_mdir_t dir = {.tail = {0, 1}};
+    lfs_block_t cycle = 0;
     while (!lfs_pair_isnull(dir.tail)) {
+        if (cycle >= lfs->cfg->block_count/2) {
+            // loop detected
+            err = LFS_ERR_CORRUPT;
+            goto cleanup;
+        }
+        cycle += 1;
+
         // fetch next block in tail list
         lfs_stag_t tag = lfs_dir_fetchmatch(lfs, &dir, dir.tail,
                 LFS_MKTAG(0x7ff, 0x3ff, 0),
@@ -3807,7 +3818,14 @@ int lfs_fs_traverseraw(lfs_t *lfs,
     }
 #endif
 
+    lfs_block_t cycle = 0;
     while (!lfs_pair_isnull(dir.tail)) {
+        if (cycle >= lfs->cfg->block_count/2) {
+            // loop detected
+            return LFS_ERR_CORRUPT;
+        }
+        cycle += 1;
+
         for (int i = 0; i < 2; i++) {
             int err = cb(data, dir.tail[i]);
             if (err) {
@@ -3891,7 +3909,14 @@ static int lfs_fs_pred(lfs_t *lfs,
     // iterate over all directory directory entries
     pdir->tail[0] = 0;
     pdir->tail[1] = 1;
+    lfs_block_t cycle = 0;
     while (!lfs_pair_isnull(pdir->tail)) {
+        if (cycle >= lfs->cfg->block_count/2) {
+            // loop detected
+            return LFS_ERR_CORRUPT;
+        }
+        cycle += 1;
+
         if (lfs_pair_cmp(pdir->tail, pair) == 0) {
             return 0;
         }
@@ -3934,7 +3959,14 @@ static lfs_stag_t lfs_fs_parent(lfs_t *lfs, const lfs_block_t pair[2],
     // use fetchmatch with callback to find pairs
     parent->tail[0] = 0;
     parent->tail[1] = 1;
+    lfs_block_t cycle = 0;
     while (!lfs_pair_isnull(parent->tail)) {
+        if (cycle >= lfs->cfg->block_count/2) {
+            // loop detected
+            return LFS_ERR_CORRUPT;
+        }
+        cycle += 1;
+
         lfs_stag_t tag = lfs_dir_fetchmatch(lfs, parent, parent->tail,
                 LFS_MKTAG(0x7ff, 0, 0x3ff),
                 LFS_MKTAG(LFS_TYPE_DIRSTRUCT, 0, 8),
