@@ -50,35 +50,31 @@ extern "C"
 
 // Logging functions
 #ifdef LFS_YES_TRACE
-#define LFS_TRACE_(fmt, ...) \
-    printf("lfs_trace:%d: " fmt "%s\n", __LINE__, __VA_ARGS__)
-#define LFS_TRACE(...) LFS_TRACE_(__VA_ARGS__, "")
+#define LFS_TRACE(fmt, ...) \
+    printf("lfs_trace:%d: " fmt "\n", __LINE__, __VA_ARGS__)
 #else
-#define LFS_TRACE(...)
+#define LFS_TRACE(fmt, ...)
 #endif
 
 #ifndef LFS_NO_DEBUG
-#define LFS_DEBUG_(fmt, ...) \
-    printf("lfs_debug:%d: " fmt "%s\n", __LINE__, __VA_ARGS__)
-#define LFS_DEBUG(...) LFS_DEBUG_(__VA_ARGS__, "")
+#define LFS_DEBUG(fmt, ...) \
+    printf("lfs_debug:%d: " fmt "\n", __LINE__, __VA_ARGS__)
 #else
-#define LFS_DEBUG(...)
+#define LFS_DEBUG(fmt, ...)
 #endif
 
 #ifndef LFS_NO_WARN
-#define LFS_WARN_(fmt, ...) \
-    printf("lfs_warn:%d: " fmt "%s\n", __LINE__, __VA_ARGS__)
-#define LFS_WARN(...) LFS_WARN_(__VA_ARGS__, "")
+#define LFS_WARN(fmt, ...) \
+    printf("lfs_warn:%d: " fmt "\n", __LINE__, __VA_ARGS__)
 #else
-#define LFS_WARN(...)
+#define LFS_WARN(fmt, ...)
 #endif
 
 #ifndef LFS_NO_ERROR
-#define LFS_ERROR_(fmt, ...) \
-    printf("lfs_error:%d: " fmt "%s\n", __LINE__, __VA_ARGS__)
-#define LFS_ERROR(...) LFS_ERROR_(__VA_ARGS__, "")
+#define LFS_ERROR(fmt, ...) \
+    printf("lfs_error:%d: " fmt "\n", __LINE__, __VA_ARGS__)
 #else
-#define LFS_ERROR(...)
+#define LFS_ERROR(fmt, ...)
 #endif
 
 // Runtime assertions
