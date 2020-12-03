@@ -118,18 +118,22 @@ static int lfs_bd_cmp(lfs_t *lfs,
         lfs_block_t block, lfs_off_t off,
         const void *buffer, lfs_size_t size) {
     const uint8_t *data = buffer;
+    lfs_size_t diff = 0;
 
-    for (lfs_off_t i = 0; i < size; i++) {
-        uint8_t dat;
-        int err = lfs_bd_read(lfs,
+    for (lfs_off_t i = 0; i < size; i += diff) {
+        uint8_t dat[8];
+
+        diff = lfs_min(size-i, sizeof(dat));
+        int res = lfs_bd_read(lfs,
                 pcache, rcache, hint-i,
-                block, off+i, &dat, 1);
-        if (err) {
-            return err;
+                block, off+i, &dat, diff);
+        if (res) {
+            return res;
         }
 
-        if (dat != data[i]) {
-            return (dat < data[i]) ? LFS_CMP_LT : LFS_CMP_GT;
+        res = memcmp(dat, data + i, diff);
+        if (res) {
+            return res < 0 ? LFS_CMP_LT : LFS_CMP_GT;
         }
     }
 
@@ -421,6 +425,31 @@ static inline void lfs_superblock_tole32(lfs_superblock_t *superblock) {
     superblock->attr_max    = lfs_tole32(superblock->attr_max);
 }
 
+static inline bool lfs_mlist_isopen(struct lfs_mlist *head,
+        struct lfs_mlist *node) {
+    for (struct lfs_mlist **p = &head; *p; p = &(*p)->next) {
+        if (*p == (struct lfs_mlist*)node) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static inline void lfs_mlist_remove(lfs_t *lfs, struct lfs_mlist *mlist) {
+    for (struct lfs_mlist **p = &lfs->mlist; *p; p = &(*p)->next) {
+        if (*p == mlist) {
+            *p = (*p)->next;
+            break;
+        }
+    }
+}
+
+static inline void lfs_mlist_append(lfs_t *lfs, struct lfs_mlist *mlist) {
+    mlist->next = lfs->mlist;
+    lfs->mlist = mlist;
+}
+
 
 /// Internal operations predeclared here ///
 #ifndef LFS_READONLY
@@ -468,14 +497,16 @@ static int lfs_alloc_lookahead(void *p, lfs_block_t block) {
 }
 #endif
 
+// indicate allocated blocks have been committed into the filesystem, this
+// is to prevent blocks from being garbage collected in the middle of a
+// commit operation
 static void lfs_alloc_ack(lfs_t *lfs) {
     lfs->free.ack = lfs->cfg->block_count;
 }
 
-// Invalidate the lookahead buffer. This is done during mounting and
-// failed traversals
-static void lfs_alloc_reset(lfs_t *lfs) {
-    lfs->free.off = lfs->seed % lfs->cfg->block_size;
+// drop the lookahead buffer, this is done during mounting and failed
+// traversals in order to avoid invalid lookahead state
+static void lfs_alloc_drop(lfs_t *lfs) {
     lfs->free.size = 0;
     lfs->free.i = 0;
     lfs_alloc_ack(lfs);
@@ -522,7 +553,7 @@ static int lfs_alloc(lfs_t *lfs, lfs_block_t *block) {
         memset(lfs->free.buffer, 0, lfs->cfg->lookahead_size);
         int err = lfs_fs_traverseraw(lfs, lfs_alloc_lookahead, lfs, true);
         if (err) {
-            lfs_alloc_reset(lfs);
+            lfs_alloc_drop(lfs);
             return err;
         }
     }
@@ -892,8 +923,10 @@ static lfs_stag_t lfs_dir_fetchmatch(lfs_t *lfs,
                 ptag ^= (lfs_tag_t)(lfs_tag_chunk(tag) & 1U) << 31;
 
                 // toss our crc into the filesystem seed for
-                // pseudorandom numbers
-                lfs->seed ^= crc;
+                // pseudorandom numbers, note we use another crc here
+                // as a collection function because it is sufficiently
+                // random and convenient
+                lfs->seed = lfs_crc(lfs->seed, &crc, sizeof(crc));
 
                 // update with what's found so far
                 besttag = tempbesttag;
@@ -1288,11 +1321,12 @@ static int lfs_dir_commitattr(lfs_t *lfs, struct lfs_commit *commit,
 
 #ifndef LFS_READONLY
 static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
-    const lfs_off_t off1 = commit->off;
-    const uint32_t crc1 = commit->crc;
     // align to program units
-    const lfs_off_t end = lfs_alignup(off1 + 2*sizeof(uint32_t),
+    const lfs_off_t end = lfs_alignup(commit->off + 2*sizeof(uint32_t),
             lfs->cfg->prog_size);
+
+    lfs_off_t off1 = 0;
+    uint32_t crc1 = 0;
 
     // create crc tags to fill up remainder of commit, note that
     // padding is not crced, which lets fetches skip padding but
@@ -1329,6 +1363,12 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
             return err;
         }
 
+        // keep track of non-padding checksum to verify
+        if (off1 == 0) {
+            off1 = commit->off + sizeof(uint32_t);
+            crc1 = commit->crc;
+        }
+
         commit->off += sizeof(tag)+lfs_tag_size(tag);
         commit->ptag = tag ^ ((lfs_tag_t)reset << 31);
         commit->crc = 0xffffffff; // reset crc for next "commit"
@@ -1342,7 +1382,7 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
 
     // successful commit, check checksums to make sure
     lfs_off_t off = commit->begin;
-    lfs_off_t noff = off1 + sizeof(uint32_t);
+    lfs_off_t noff = off1;
     while (off < end) {
         uint32_t crc = 0xffffffff;
         for (lfs_off_t i = off; i < noff+sizeof(uint32_t); i++) {
@@ -2053,6 +2093,8 @@ int lfs_mkdir(lfs_t *lfs, const char *path) {
 
 int lfs_dir_open(lfs_t *lfs, lfs_dir_t *dir, const char *path) {
     LFS_TRACE("lfs_dir_open(%p, %p, \"%s\")", (void*)lfs, (void*)dir, path);
+    LFS_ASSERT(!lfs_mlist_isopen(lfs->mlist, (struct lfs_mlist*)dir));
+
     lfs_stag_t tag = lfs_dir_find(lfs, &dir->m, &path, NULL);
     if (tag < 0) {
         LFS_TRACE("lfs_dir_open -> %"PRId32, tag);
@@ -2095,8 +2137,7 @@ int lfs_dir_open(lfs_t *lfs, lfs_dir_t *dir, const char *path) {
 
     // add to list of mdirs
     dir->type = LFS_TYPE_DIR;
-    dir->next = (lfs_dir_t*)lfs->mlist;
-    lfs->mlist = (struct lfs_mlist*)dir;
+    lfs_mlist_append(lfs, (struct lfs_mlist *)dir);
 
     LFS_TRACE("lfs_dir_open -> %d", 0);
     return 0;
@@ -2105,12 +2146,7 @@ int lfs_dir_open(lfs_t *lfs, lfs_dir_t *dir, const char *path) {
 int lfs_dir_close(lfs_t *lfs, lfs_dir_t *dir) {
     LFS_TRACE("lfs_dir_close(%p, %p)", (void*)lfs, (void*)dir);
     // remove from list of mdirs
-    for (struct lfs_mlist **p = &lfs->mlist; *p; p = &(*p)->next) {
-        if (*p == (struct lfs_mlist*)dir) {
-            *p = (*p)->next;
-            break;
-        }
-    }
+    lfs_mlist_remove(lfs, (struct lfs_mlist *)dir);
 
     LFS_TRACE("lfs_dir_close -> %d", 0);
     return 0;
@@ -2435,12 +2471,13 @@ int lfs_file_opencfg(lfs_t *lfs, lfs_file_t *file,
                  ".buffer=%p, .attrs=%p, .attr_count=%"PRIu32"})",
             (void*)lfs, (void*)file, path, flags,
             (void*)cfg, cfg->buffer, (void*)cfg->attrs, cfg->attr_count);
+    LFS_ASSERT(!lfs_mlist_isopen(lfs->mlist, (struct lfs_mlist*)file));
 
 #ifdef LFS_READONLY
     LFS_ASSERT((flags & 3) == LFS_O_RDONLY);
 #else
     // deorphan if we haven't yet, needed at most once after poweron
-    if ((flags & 3) != LFS_O_RDONLY) {
+    if ((flags & LFS_O_RDWR) != LFS_O_RDONLY) {
         int err = lfs_fs_forceconsistency(lfs);
         if (err) {
             LFS_TRACE("lfs_file_opencfg -> %d", err);
@@ -2466,8 +2503,7 @@ int lfs_file_opencfg(lfs_t *lfs, lfs_file_t *file,
 
     // get id, add to list of mdirs to catch update changes
     file->type = LFS_TYPE_REG;
-    file->next = (lfs_file_t*)lfs->mlist;
-    lfs->mlist = (struct lfs_mlist*)file;
+    lfs_mlist_append(lfs, (struct lfs_mlist *)file);
 
 #ifdef LFS_READONLY
     if (tag == LFS_ERR_NOENT) {
@@ -2621,12 +2657,7 @@ int lfs_file_close(lfs_t *lfs, lfs_file_t *file) {
 #endif
 
     // remove from list of mdirs
-    for (struct lfs_mlist **p = &lfs->mlist; *p; p = &(*p)->next) {
-        if (*p == (struct lfs_mlist*)file) {
-            *p = (*p)->next;
-            break;
-        }
-    }
+    lfs_mlist_remove(lfs, (struct lfs_mlist*)file);
 
     // clean up memory
     if (!file->cfg->buffer) {
@@ -2873,10 +2904,8 @@ lfs_ssize_t lfs_file_read(lfs_t *lfs, lfs_file_t *file,
     LFS_TRACE("lfs_file_read(%p, %p, %p, %"PRIu32")",
             (void*)lfs, (void*)file, buffer, size);
     LFS_ASSERT(file->flags & LFS_F_OPENED);
-#ifdef LFS_READONLY
-    // always LFS_O_RDONLY
-#else
-    LFS_ASSERT((file->flags & 3) != LFS_O_WRONLY);
+#ifndef LFS_READONLY
+    LFS_ASSERT((file->flags & LFS_O_RDWR) != LFS_O_WRONLY);
 #endif
 
     uint8_t *data = buffer;
@@ -2960,7 +2989,7 @@ lfs_ssize_t lfs_file_write(lfs_t *lfs, lfs_file_t *file,
     LFS_TRACE("lfs_file_write(%p, %p, %p, %"PRIu32")",
             (void*)lfs, (void*)file, buffer, size);
     LFS_ASSERT(file->flags & LFS_F_OPENED);
-    LFS_ASSERT((file->flags & 3) != LFS_O_RDONLY);
+    LFS_ASSERT((file->flags & LFS_O_RDWR) != LFS_O_RDONLY);
 
     const uint8_t *data = buffer;
     lfs_size_t nsize = size;
@@ -3129,7 +3158,7 @@ int lfs_file_truncate(lfs_t *lfs, lfs_file_t *file, lfs_off_t size) {
     LFS_TRACE("lfs_file_truncate(%p, %p, %"PRIu32")",
             (void*)lfs, (void*)file, size);
     LFS_ASSERT(file->flags & LFS_F_OPENED);
-    LFS_ASSERT((file->flags & 3) != LFS_O_RDONLY);
+    LFS_ASSERT((file->flags & LFS_O_RDWR) != LFS_O_RDONLY);
 
     if (size > LFS_FILE_MAX) {
         LFS_TRACE("lfs_file_truncate -> %d", LFS_ERR_INVAL);
@@ -3906,8 +3935,10 @@ int lfs_mount(lfs_t *lfs, const struct lfs_config *cfg) {
     lfs->gstate.tag += !lfs_tag_isvalid(lfs->gstate.tag);
     lfs->gdisk = lfs->gstate;
 
-    // setup free lookahead
-    lfs_alloc_reset(lfs);
+    // setup free lookahead, to distribute allocations uniformly across
+    // boots, we start the allocator at a random location
+    lfs->free.off = lfs->seed % lfs->cfg->block_count;
+    lfs_alloc_drop(lfs);
 
     LFS_TRACE("lfs_mount -> %d", 0);
     return 0;
