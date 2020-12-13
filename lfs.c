@@ -1591,8 +1591,7 @@ static int lfs_dir_compact(lfs_t *lfs,
         // for metadata updates.
         if (end - begin < 0xff &&
                 size <= lfs_min(lfs->cfg->block_size - 36,
-                    lfs_alignup((lfs->cfg->metadata_max ?
-                            lfs->cfg->metadata_max : lfs->cfg->block_size)/2,
+                    lfs_alignup(lfs->cfg->block_size/2,
                         lfs->cfg->prog_size))) {
             break;
         }
@@ -1677,8 +1676,7 @@ static int lfs_dir_compact(lfs_t *lfs,
                 .crc = 0xffffffff,
 
                 .begin = 0,
-                .end = (lfs->cfg->metadata_max ?
-                    lfs->cfg->metadata_max : lfs->cfg->block_size) - 8,
+                .end = lfs->cfg->block_size - 8,
             };
 
             // erase block to write to
@@ -1888,8 +1886,7 @@ static int lfs_dir_commit(lfs_t *lfs, lfs_mdir_t *dir,
             .crc = 0xffffffff,
 
             .begin = dir->off,
-            .end = (lfs->cfg->metadata_max ?
-                lfs->cfg->metadata_max : lfs->cfg->block_size) - 8,
+            .end = lfs->cfg->block_size - 8,
         };
 
         // traverse attrs that need to be written out
@@ -2971,9 +2968,7 @@ static lfs_ssize_t lfs_file_rawwrite(lfs_t *lfs, lfs_file_t *file,
     if ((file->flags & LFS_F_INLINE) &&
             lfs_max(file->pos+nsize, file->ctz.size) >
             lfs_min(0x3fe, lfs_min(
-                lfs->cfg->cache_size,
-                (lfs->cfg->metadata_max ?
-                    lfs->cfg->metadata_max : lfs->cfg->block_size) / 8))) {
+                lfs->cfg->cache_size, lfs->cfg->block_size/8))) {
         // inline file doesn't fit anymore
         int err = lfs_file_outline(lfs, file);
         if (err) {
@@ -3055,26 +3050,6 @@ relocate:
 
 static lfs_soff_t lfs_file_rawseek(lfs_t *lfs, lfs_file_t *file,
         lfs_soff_t off, int whence) {
-    // find new pos
-    lfs_off_t npos = file->pos;
-    if (whence == LFS_SEEK_SET) {
-        npos = off;
-    } else if (whence == LFS_SEEK_CUR) {
-        npos = file->pos + off;
-    } else if (whence == LFS_SEEK_END) {
-        npos = lfs_file_rawsize(lfs, file) + off;
-    }
-
-    if (npos > lfs->file_max) {
-        // file position out of range
-        return LFS_ERR_INVAL;
-    }
-
-    if (file->pos == npos) {
-        // noop - position has not changed
-        return npos;
-    }
-
 #ifndef LFS_READONLY
     // write out everything beforehand, may be noop if rdonly
     int err = lfs_file_flush(lfs, file);
@@ -3082,6 +3057,21 @@ static lfs_soff_t lfs_file_rawseek(lfs_t *lfs, lfs_file_t *file,
         return err;
     }
 #endif
+
+    // find new pos
+    lfs_off_t npos = file->pos;
+    if (whence == LFS_SEEK_SET) {
+        npos = off;
+    } else if (whence == LFS_SEEK_CUR) {
+        npos = file->pos + off;
+    } else if (whence == LFS_SEEK_END) {
+        npos = file->ctz.size + off;
+    }
+
+    if (npos > lfs->file_max) {
+        // file position out of range
+        return LFS_ERR_INVAL;
+    }
 
     // update pos
     file->pos = npos;
@@ -3113,22 +3103,21 @@ static int lfs_file_rawtruncate(lfs_t *lfs, lfs_file_t *file, lfs_off_t size) {
             return err;
         }
 
-        // need to set pos/block/off consistently so seeking back to
-        // the old position does not get confused
-        file->pos = size;
         file->ctz.head = file->block;
         file->ctz.size = size;
         file->flags |= LFS_F_DIRTY | LFS_F_READING;
     } else if (size > oldsize) {
         // flush+seek if not already at end
-        lfs_soff_t res = lfs_file_rawseek(lfs, file, 0, LFS_SEEK_END);
-        if (res < 0) {
-            return (int)res;
+        if (file->pos != oldsize) {
+            lfs_soff_t res = lfs_file_rawseek(lfs, file, 0, LFS_SEEK_END);
+            if (res < 0) {
+                return (int)res;
+            }
         }
 
         // fill with zeros
         while (file->pos < size) {
-            res = lfs_file_rawwrite(lfs, file, &(uint8_t){0}, 1);
+            lfs_ssize_t res = lfs_file_rawwrite(lfs, file, &(uint8_t){0}, 1);
             if (res < 0) {
                 return (int)res;
             }
@@ -3549,8 +3538,6 @@ static int lfs_init(lfs_t *lfs, const struct lfs_config *cfg) {
         lfs->attr_max = LFS_ATTR_MAX;
     }
 
-    LFS_ASSERT(lfs->cfg->metadata_max <= lfs->cfg->block_size);
-
     // setup default state
     lfs->root[0] = LFS_BLOCK_NULL;
     lfs->root[1] = LFS_BLOCK_NULL;
@@ -3631,16 +3618,16 @@ static int lfs_rawformat(lfs_t *lfs, const struct lfs_config *cfg) {
             goto cleanup;
         }
 
-        // force compaction to prevent accidentally mounting any
-        // older version of littlefs that may live on disk
-        root.erased = false;
-        err = lfs_dir_commit(lfs, &root, NULL, 0);
+        // sanity check that fetch works
+        err = lfs_dir_fetch(lfs, &root, (const lfs_block_t[2]){0, 1});
         if (err) {
             goto cleanup;
         }
 
-        // sanity check that fetch works
-        err = lfs_dir_fetch(lfs, &root, (const lfs_block_t[2]){0, 1});
+        // force compaction to prevent accidentally mounting any
+        // older version of littlefs that may live on disk
+        root.erased = false;
+        err = lfs_dir_commit(lfs, &root, NULL, 0);
         if (err) {
             goto cleanup;
         }
@@ -3844,7 +3831,7 @@ int lfs_fs_rawtraverse(lfs_t *lfs,
                 if (err) {
                     return err;
                 }
-            } else if (includeorphans &&
+            } else if (includeorphans && 
                     lfs_tag_type3(tag) == LFS_TYPE_DIRSTRUCT) {
                 for (int i = 0; i < 2; i++) {
                     err = cb(data, (&ctz.head)[i]);
@@ -4738,7 +4725,7 @@ static int lfs_rawmigrate(lfs_t *lfs, const struct lfs_config *cfg) {
 
                 lfs1_entry_tole32(&entry1.d);
                 err = lfs_dir_commit(lfs, &dir2, LFS_MKATTRS(
-                        {LFS_MKTAG(LFS_TYPE_CREATE, id, 0), NULL},
+                        {LFS_MKTAG(LFS_TYPE_CREATE, id, 0)},
                         {LFS_MKTAG_IF_ELSE(isdir,
                             LFS_TYPE_DIR, id, entry1.d.nlen,
                             LFS_TYPE_REG, id, entry1.d.nlen),
@@ -4843,7 +4830,7 @@ static int lfs_rawmigrate(lfs_t *lfs, const struct lfs_config *cfg) {
 
         lfs_superblock_tole32(&superblock);
         err = lfs_dir_commit(lfs, &dir2, LFS_MKATTRS(
-                {LFS_MKTAG(LFS_TYPE_CREATE, 0, 0), NULL},
+                {LFS_MKTAG(LFS_TYPE_CREATE, 0, 0)},
                 {LFS_MKTAG(LFS_TYPE_SUPERBLOCK, 0, 8), "littlefs"},
                 {LFS_MKTAG(LFS_TYPE_INLINESTRUCT, 0, sizeof(superblock)),
                     &superblock}));
