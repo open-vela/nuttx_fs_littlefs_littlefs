@@ -1,7 +1,6 @@
 /*
  * Block device emulated in a file
  *
- * Copyright (c) 2022, The littlefs authors.
  * Copyright (c) 2017, Arm Limited. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -81,7 +80,7 @@ int lfs_filebd_read(const struct lfs_config *cfg, lfs_block_t block,
     LFS_ASSERT(size % cfg->read_size == 0);
     LFS_ASSERT(block < cfg->block_count);
 
-    // zero for reproducibility (in case file is truncated)
+    // zero for reproducability (in case file is truncated)
     if (bd->cfg->erase_value != -1) {
         memset(buffer, bd->cfg->erase_value, size);
     }
