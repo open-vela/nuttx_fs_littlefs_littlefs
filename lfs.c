@@ -5138,6 +5138,7 @@ int lfs_removeattr(lfs_t *lfs, const char *path, uint8_t type) {
 }
 #endif
 
+#ifndef LFS_NO_MALLOC
 int lfs_file_open(lfs_t *lfs, lfs_file_t *file, const char *path, int flags) {
     int err = LFS_LOCK(lfs->cfg);
     if (err) {
@@ -5153,6 +5154,7 @@ int lfs_file_open(lfs_t *lfs, lfs_file_t *file, const char *path, int flags) {
     LFS_UNLOCK(lfs->cfg);
     return err;
 }
+#endif
 
 int lfs_file_opencfg(lfs_t *lfs, lfs_file_t *file,
         const char *path, int flags,
