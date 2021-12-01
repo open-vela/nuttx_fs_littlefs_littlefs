@@ -1,7 +1,6 @@
 /*
  * Block device emulated in RAM
  *
- * Copyright (c) 2022, The littlefs authors.
  * Copyright (c) 2017, Arm Limited. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -18,12 +17,10 @@ extern "C"
 
 
 // Block device specific tracing
-#ifndef LFS_RAMBD_TRACE
 #ifdef LFS_RAMBD_YES_TRACE
 #define LFS_RAMBD_TRACE(...) LFS_TRACE(__VA_ARGS__)
 #else
 #define LFS_RAMBD_TRACE(...)
-#endif
 #endif
 
 // rambd config (optional)
