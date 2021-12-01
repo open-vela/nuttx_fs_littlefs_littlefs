@@ -15,84 +15,15 @@ import csv
 import collections as co
 
 
-OBJ_PATHS = ['*.o']
-
-class CodeResult(co.namedtuple('CodeResult', 'code_size')):
-    __slots__ = ()
-    def __new__(cls, code_size=0):
-        return super().__new__(cls, int(code_size))
-
-    def __add__(self, other):
-        return self.__class__(self.code_size + other.code_size)
-
-    def __sub__(self, other):
-        return CodeDiff(other, self)
-
-    def __rsub__(self, other):
-        return self.__class__.__sub__(other, self)
-
-    def key(self, **args):
-        if args.get('size_sort'):
-            return -self.code_size
-        elif args.get('reverse_size_sort'):
-            return +self.code_size
-        else:
-            return None
-
-    _header = '%7s' % 'size'
-    def __str__(self):
-        return '%7d' % self.code_size
-
-class CodeDiff(co.namedtuple('CodeDiff',  'old,new')):
-    __slots__ = ()
-
-    def ratio(self):
-        old = self.old.code_size if self.old is not None else 0
-        new = self.new.code_size if self.new is not None else 0
-        return (new-old) / old if old else 1.0
-
-    def key(self, **args):
-        return (
-            self.new.key(**args) if self.new is not None else 0,
-            -self.ratio())
-
-    def __bool__(self):
-        return bool(self.ratio())
-
-    _header = '%7s %7s %7s' % ('old', 'new', 'diff')
-    def __str__(self):
-        old = self.old.code_size if self.old is not None else 0
-        new = self.new.code_size if self.new is not None else 0
-        diff = new - old
-        ratio = self.ratio()
-        return '%7s %7s %+7d%s' % (
-            old or "-",
-            new or "-",
-            diff,
-            ' (%+.1f%%)' % (100*ratio) if ratio else '')
-
-
-def openio(path, mode='r'):
-    if path == '-':
-        if 'r' in mode:
-            return os.fdopen(os.dup(sys.stdin.fileno()), 'r')
-        else:
-            return os.fdopen(os.dup(sys.stdout.fileno()), 'w')
-    else:
-        return open(path, mode)
+OBJ_PATHS = ['*.o', 'bd/*.o']
 
 def collect(paths, **args):
-    results = co.defaultdict(lambda: CodeResult())
+    results = co.defaultdict(lambda: 0)
     pattern = re.compile(
         '^(?P<size>[0-9a-fA-F]+)' +
         ' (?P<type>[%s])' % re.escape(args['type']) +
         ' (?P<func>.+?)$')
     for path in paths:
-        # map to source file
-        src_path = re.sub('\.o$', '.c', path)
-        if args.get('build_dir'):
-            src_path = re.sub('%s/*' % re.escape(args['build_dir']), '',
-                src_path)
         # note nm-tool may contain extra args
         cmd = args['nm_tool'] + ['--size-sort', path]
         if args.get('verbose'):
@@ -100,19 +31,11 @@ def collect(paths, **args):
         proc = sp.Popen(cmd,
             stdout=sp.PIPE,
             stderr=sp.PIPE if not args.get('verbose') else None,
-            universal_newlines=True,
-            errors='replace')
+            universal_newlines=True)
         for line in proc.stdout:
             m = pattern.match(line)
             if m:
-                func = m.group('func')
-                # discard internal functions
-                if not args.get('everything') and func.startswith('__'):
-                    continue
-                # discard .8449 suffixes created by optimizer
-                func = re.sub('\.[0-9]+', '', func)
-                results[(src_path, func)] += CodeResult(
-                    int(m.group('size'), 16))
+                results[(path, m.group('func'))] += int(m.group('size'), 16)
         proc.wait()
         if proc.returncode != 0:
             if not args.get('verbose'):
@@ -120,7 +43,19 @@ def collect(paths, **args):
                     sys.stdout.write(line)
             sys.exit(-1)
 
-    return results
+    flat_results = []
+    for (file, func), size in results.items():
+        # map to source files
+        if args.get('build_dir'):
+            file = re.sub('%s/*' % re.escape(args['build_dir']), '', file)
+        # discard internal functions
+        if func.startswith('__'):
+            continue
+        # discard .8449 suffixes created by optimizer
+        func = re.sub('\.[0-9]+', '', func)
+        flat_results.append((file, func, size))
+
+    return flat_results
 
 def main(**args):
     # find sizes
@@ -140,123 +75,108 @@ def main(**args):
 
         results = collect(paths, **args)
     else:
-        with openio(args['use']) as f:
+        with open(args['use']) as f:
             r = csv.DictReader(f)
-            results = {
-                (result['file'], result['name']): CodeResult(
-                    *(result[f] for f in CodeResult._fields))
-                for result in r
-                if all(result.get(f) not in {None, ''}
-                    for f in CodeResult._fields)}
+            results = [
+                (   result['file'],
+                    result['function'],
+                    int(result['size']))
+                for result in r]
+
+    total = 0
+    for _, _, size in results:
+        total += size
 
     # find previous results?
     if args.get('diff'):
-        try:
-            with openio(args['diff']) as f:
-                r = csv.DictReader(f)
-                prev_results = {
-                    (result['file'], result['name']): CodeResult(
-                        *(result[f] for f in CodeResult._fields))
-                    for result in r
-                    if all(result.get(f) not in {None, ''}
-                        for f in CodeResult._fields)}
-        except FileNotFoundError:
-            prev_results = []
+        with open(args['diff']) as f:
+            r = csv.DictReader(f)
+            prev_results = [
+                (   result['file'],
+                    result['function'],
+                    int(result['size']))
+                for result in r]
+
+        prev_total = 0
+        for _, _, size in prev_results:
+            prev_total += size
 
     # write results to CSV
     if args.get('output'):
-        merged_results = co.defaultdict(lambda: {})
-        other_fields = []
-
-        # merge?
-        if args.get('merge'):
-            try:
-                with openio(args['merge']) as f:
-                    r = csv.DictReader(f)
-                    for result in r:
-                        file = result.pop('file', '')
-                        func = result.pop('name', '')
-                        for f in CodeResult._fields:
-                            result.pop(f, None)
-                        merged_results[(file, func)] = result
-                        other_fields = result.keys()
-            except FileNotFoundError:
-                pass
-
-        for (file, func), result in results.items():
-            merged_results[(file, func)] |= result._asdict()
-
-        with openio(args['output'], 'w') as f:
-            w = csv.DictWriter(f, ['file', 'name',
-                *other_fields, *CodeResult._fields])
-            w.writeheader()
-            for (file, func), result in sorted(merged_results.items()):
-                w.writerow({'file': file, 'name': func, **result})
+        with open(args['output'], 'w') as f:
+            w = csv.writer(f)
+            w.writerow(['file', 'function', 'size'])
+            for file, func, size in sorted(results):
+                w.writerow((file, func, size))
 
     # print results
-    def print_header(by):
-        if by == 'total':
-            entry = lambda k: 'TOTAL'
-        elif by == 'file':
-            entry = lambda k: k[0]
+    def dedup_entries(results, by='function'):
+        entries = co.defaultdict(lambda: 0)
+        for file, func, size in results:
+            entry = (file if by == 'file' else func)
+            entries[entry] += size
+        return entries
+
+    def diff_entries(olds, news):
+        diff = co.defaultdict(lambda: (0, 0, 0, 0))
+        for name, new in news.items():
+            diff[name] = (0, new, new, 1.0)
+        for name, old in olds.items():
+            _, new, _, _ = diff[name]
+            diff[name] = (old, new, new-old, (new-old)/old if old else 1.0)
+        return diff
+
+    def print_header(by=''):
+        if not args.get('diff'):
+            print('%-36s %7s' % (by, 'size'))
         else:
-            entry = lambda k: k[1]
+            print('%-36s %7s %7s %7s' % (by, 'old', 'new', 'diff'))
+
+    def print_entries(by='function'):
+        entries = dedup_entries(results, by=by)
 
         if not args.get('diff'):
-            print('%-36s %s' % (by, CodeResult._header))
+            print_header(by=by)
+            for name, size in sorted(entries.items()):
+                print("%-36s %7d" % (name, size))
         else:
-            old = {entry(k) for k in results.keys()}
-            new = {entry(k) for k in prev_results.keys()}
-            print('%-36s %s' % (
-                '%s (%d added, %d removed)' % (by,
-                        sum(1 for k in new if k not in old),
-                        sum(1 for k in old if k not in new))
-                    if by else '',
-                CodeDiff._header))
+            prev_entries = dedup_entries(prev_results, by=by)
+            diff = diff_entries(prev_entries, entries)
+            print_header(by='%s (%d added, %d removed)' % (by,
+                sum(1 for old, _, _, _ in diff.values() if not old),
+                sum(1 for _, new, _, _ in diff.values() if not new)))
+            for name, (old, new, diff, ratio) in sorted(diff.items(),
+                    key=lambda x: (-x[1][3], x)):
+                if ratio or args.get('all'):
+                    print("%-36s %7s %7s %+7d%s" % (name,
+                        old or "-",
+                        new or "-",
+                        diff,
+                        ' (%+.1f%%)' % (100*ratio) if ratio else ''))
 
-    def print_entries(by):
-        if by == 'total':
-            entry = lambda k: 'TOTAL'
-        elif by == 'file':
-            entry = lambda k: k[0]
-        else:
-            entry = lambda k: k[1]
-
-        entries = co.defaultdict(lambda: CodeResult())
-        for k, result in results.items():
-            entries[entry(k)] += result
-
+    def print_totals():
         if not args.get('diff'):
-            for name, result in sorted(entries.items(),
-                    key=lambda p: (p[1].key(**args), p)):
-                print('%-36s %s' % (name, result))
+            print("%-36s %7d" % ('TOTAL', total))
         else:
-            prev_entries = co.defaultdict(lambda: CodeResult())
-            for k, result in prev_results.items():
-                prev_entries[entry(k)] += result
-
-            diff_entries = {name: entries.get(name) - prev_entries.get(name)
-                for name in (entries.keys() | prev_entries.keys())}
-
-            for name, diff in sorted(diff_entries.items(),
-                    key=lambda p: (p[1].key(**args), p)):
-                if diff or args.get('all'):
-                    print('%-36s %s' % (name, diff))
+            ratio = (total-prev_total)/prev_total if prev_total else 1.0
+            print("%-36s %7s %7s %+7d%s" % (
+                'TOTAL',
+                prev_total if prev_total else '-',
+                total if total else '-',
+                total-prev_total,
+                ' (%+.1f%%)' % (100*ratio) if ratio else ''))
 
     if args.get('quiet'):
         pass
     elif args.get('summary'):
-        print_header('')
-        print_entries('total')
+        print_header()
+        print_totals()
     elif args.get('files'):
-        print_header('file')
-        print_entries('file')
-        print_entries('total')
+        print_entries(by='file')
+        print_totals()
     else:
-        print_header('function')
-        print_entries('function')
-        print_entries('total')
-
+        print_entries(by='function')
+        print_totals()
 
 if __name__ == "__main__":
     import argparse
@@ -268,30 +188,22 @@ if __name__ == "__main__":
             or a list of paths. Defaults to %r." % OBJ_PATHS)
     parser.add_argument('-v', '--verbose', action='store_true',
         help="Output commands that run behind the scenes.")
-    parser.add_argument('-q', '--quiet', action='store_true',
-        help="Don't show anything, useful with -o.")
     parser.add_argument('-o', '--output',
         help="Specify CSV file to store results.")
     parser.add_argument('-u', '--use',
         help="Don't compile and find code sizes, instead use this CSV file.")
     parser.add_argument('-d', '--diff',
         help="Specify CSV file to diff code size against.")
-    parser.add_argument('-m', '--merge',
-        help="Merge with an existing CSV file when writing to output.")
     parser.add_argument('-a', '--all', action='store_true',
         help="Show all functions, not just the ones that changed.")
-    parser.add_argument('-A', '--everything', action='store_true',
-        help="Include builtin and libc specific symbols.")
-    parser.add_argument('-s', '--size-sort', action='store_true',
-        help="Sort by size.")
-    parser.add_argument('-S', '--reverse-size-sort', action='store_true',
-        help="Sort by size, but backwards.")
-    parser.add_argument('-F', '--files', action='store_true',
+    parser.add_argument('--files', action='store_true',
         help="Show file-level code sizes. Note this does not include padding! "
             "So sizes may differ from other tools.")
-    parser.add_argument('-Y', '--summary', action='store_true',
+    parser.add_argument('-s', '--summary', action='store_true',
         help="Only show the total code size.")
-    parser.add_argument('--type', default='tTrRdD',
+    parser.add_argument('-q', '--quiet', action='store_true',
+        help="Don't show anything, useful with -o.")
+    parser.add_argument('--type', default='tTrRdDbB',
         help="Type of symbols to report, this uses the same single-character "
             "type-names emitted by nm. Defaults to %(default)r.")
     parser.add_argument('--nm-tool', default=['nm'], type=lambda x: x.split(),
@@ -299,6 +211,4 @@ if __name__ == "__main__":
     parser.add_argument('--build-dir',
         help="Specify the relative build directory. Used to map object files \
             to the correct source files.")
-    sys.exit(main(**{k: v
-        for k, v in vars(parser.parse_args()).items()
-        if v is not None}))
+    sys.exit(main(**vars(parser.parse_args())))

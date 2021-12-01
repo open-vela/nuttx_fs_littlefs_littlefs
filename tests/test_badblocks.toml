@@ -1,30 +1,28 @@
 # bad blocks with block cycles should be tested in test_relocations
-if = '(int32_t)BLOCK_CYCLES == -1'
+if = 'LFS_BLOCK_CYCLES == -1'
 
-[cases.single_bad_blocks]
-defines.BLOCK_COUNT = 256 # small bd so test runs faster
-defines.ERASE_CYCLES = 0xffffffff
-defines.ERASE_VALUE = [0x00, 0xff, -1]
-defines.BADBLOCK_BEHAVIOR = [
+[[case]] # single bad blocks
+define.LFS_BLOCK_COUNT = 256 # small bd so test runs faster
+define.LFS_ERASE_CYCLES = 0xffffffff
+define.LFS_ERASE_VALUE = [0x00, 0xff, -1]
+define.LFS_BADBLOCK_BEHAVIOR = [
     'LFS_TESTBD_BADBLOCK_PROGERROR',
     'LFS_TESTBD_BADBLOCK_ERASEERROR',
     'LFS_TESTBD_BADBLOCK_READERROR',
     'LFS_TESTBD_BADBLOCK_PROGNOOP',
     'LFS_TESTBD_BADBLOCK_ERASENOOP',
 ]
-defines.NAMEMULT = 64
-defines.FILEMULT = 1
+define.NAMEMULT = 64
+define.FILEMULT = 1
 code = '''
-    for (lfs_block_t badblock = 2; badblock < BLOCK_COUNT; badblock++) {
-        lfs_testbd_setwear(cfg, badblock-1, 0) => 0;
-        lfs_testbd_setwear(cfg, badblock, 0xffffffff) => 0;
+    for (lfs_block_t badblock = 2; badblock < LFS_BLOCK_COUNT; badblock++) {
+        lfs_testbd_setwear(&cfg, badblock-1, 0) => 0;
+        lfs_testbd_setwear(&cfg, badblock, 0xffffffff) => 0;
+        
+        lfs_format(&lfs, &cfg) => 0;
 
-        lfs_t lfs;
-        lfs_format(&lfs, cfg) => 0;
-
-        lfs_mount(&lfs, cfg) => 0;
+        lfs_mount(&lfs, &cfg) => 0;
         for (int i = 1; i < 10; i++) {
-            uint8_t buffer[1024];
             for (int j = 0; j < NAMEMULT; j++) {
                 buffer[j] = '0'+i;
             }
@@ -36,11 +34,10 @@ code = '''
                 buffer[j+NAMEMULT+1] = '0'+i;
             }
             buffer[2*NAMEMULT+1] = '\0';
-            lfs_file_t file;
             lfs_file_open(&lfs, &file, (char*)buffer,
                     LFS_O_WRONLY | LFS_O_CREAT) => 0;
             
-            lfs_size_t size = NAMEMULT;
+            size = NAMEMULT;
             for (int j = 0; j < i*FILEMULT; j++) {
                 lfs_file_write(&lfs, &file, buffer, size) => size;
             }
@@ -49,14 +46,12 @@ code = '''
         }
         lfs_unmount(&lfs) => 0;
 
-        lfs_mount(&lfs, cfg) => 0;
+        lfs_mount(&lfs, &cfg) => 0;
         for (int i = 1; i < 10; i++) {
-            uint8_t buffer[1024];
             for (int j = 0; j < NAMEMULT; j++) {
                 buffer[j] = '0'+i;
             }
             buffer[NAMEMULT] = '\0';
-            struct lfs_info info;
             lfs_stat(&lfs, (char*)buffer, &info) => 0;
             info.type => LFS_TYPE_DIR;
 
@@ -65,10 +60,9 @@ code = '''
                 buffer[j+NAMEMULT+1] = '0'+i;
             }
             buffer[2*NAMEMULT+1] = '\0';
-            lfs_file_t file;
             lfs_file_open(&lfs, &file, (char*)buffer, LFS_O_RDONLY) => 0;
             
-            int size = NAMEMULT;
+            size = NAMEMULT;
             for (int j = 0; j < i*FILEMULT; j++) {
                 uint8_t rbuffer[1024];
                 lfs_file_read(&lfs, &file, rbuffer, size) => size;
@@ -81,30 +75,28 @@ code = '''
     }
 '''
 
-[cases.region_corruption] # (causes cascading failures)
-defines.BLOCK_COUNT = 256 # small bd so test runs faster
-defines.ERASE_CYCLES = 0xffffffff
-defines.ERASE_VALUE = [0x00, 0xff, -1]
-defines.BADBLOCK_BEHAVIOR = [
+[[case]] # region corruption (causes cascading failures)
+define.LFS_BLOCK_COUNT = 256 # small bd so test runs faster
+define.LFS_ERASE_CYCLES = 0xffffffff
+define.LFS_ERASE_VALUE = [0x00, 0xff, -1]
+define.LFS_BADBLOCK_BEHAVIOR = [
     'LFS_TESTBD_BADBLOCK_PROGERROR',
     'LFS_TESTBD_BADBLOCK_ERASEERROR',
     'LFS_TESTBD_BADBLOCK_READERROR',
     'LFS_TESTBD_BADBLOCK_PROGNOOP',
     'LFS_TESTBD_BADBLOCK_ERASENOOP',
 ]
-defines.NAMEMULT = 64
-defines.FILEMULT = 1
+define.NAMEMULT = 64
+define.FILEMULT = 1
 code = '''
-    for (lfs_block_t i = 0; i < (BLOCK_COUNT-2)/2; i++) {
-        lfs_testbd_setwear(cfg, i+2, 0xffffffff) => 0;
+    for (lfs_block_t i = 0; i < (LFS_BLOCK_COUNT-2)/2; i++) {
+        lfs_testbd_setwear(&cfg, i+2, 0xffffffff) => 0;
     }
+    
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 1; i < 10; i++) {
-        uint8_t buffer[1024];
         for (int j = 0; j < NAMEMULT; j++) {
             buffer[j] = '0'+i;
         }
@@ -116,11 +108,10 @@ code = '''
             buffer[j+NAMEMULT+1] = '0'+i;
         }
         buffer[2*NAMEMULT+1] = '\0';
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, (char*)buffer,
                 LFS_O_WRONLY | LFS_O_CREAT) => 0;
         
-        lfs_size_t size = NAMEMULT;
+        size = NAMEMULT;
         for (int j = 0; j < i*FILEMULT; j++) {
             lfs_file_write(&lfs, &file, buffer, size) => size;
         }
@@ -129,14 +120,12 @@ code = '''
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 1; i < 10; i++) {
-        uint8_t buffer[1024];
         for (int j = 0; j < NAMEMULT; j++) {
             buffer[j] = '0'+i;
         }
         buffer[NAMEMULT] = '\0';
-        struct lfs_info info;
         lfs_stat(&lfs, (char*)buffer, &info) => 0;
         info.type => LFS_TYPE_DIR;
 
@@ -145,10 +134,9 @@ code = '''
             buffer[j+NAMEMULT+1] = '0'+i;
         }
         buffer[2*NAMEMULT+1] = '\0';
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, (char*)buffer, LFS_O_RDONLY) => 0;
         
-        lfs_size_t size = NAMEMULT;
+        size = NAMEMULT;
         for (int j = 0; j < i*FILEMULT; j++) {
             uint8_t rbuffer[1024];
             lfs_file_read(&lfs, &file, rbuffer, size) => size;
@@ -160,30 +148,28 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.alternating_corruption] # (causes cascading failures)
-defines.BLOCK_COUNT = 256 # small bd so test runs faster
-defines.ERASE_CYCLES = 0xffffffff
-defines.ERASE_VALUE = [0x00, 0xff, -1]
-defines.BADBLOCK_BEHAVIOR = [
+[[case]] # alternating corruption (causes cascading failures)
+define.LFS_BLOCK_COUNT = 256 # small bd so test runs faster
+define.LFS_ERASE_CYCLES = 0xffffffff
+define.LFS_ERASE_VALUE = [0x00, 0xff, -1]
+define.LFS_BADBLOCK_BEHAVIOR = [
     'LFS_TESTBD_BADBLOCK_PROGERROR',
     'LFS_TESTBD_BADBLOCK_ERASEERROR',
     'LFS_TESTBD_BADBLOCK_READERROR',
     'LFS_TESTBD_BADBLOCK_PROGNOOP',
     'LFS_TESTBD_BADBLOCK_ERASENOOP',
 ]
-defines.NAMEMULT = 64
-defines.FILEMULT = 1
+define.NAMEMULT = 64
+define.FILEMULT = 1
 code = '''
-    for (lfs_block_t i = 0; i < (BLOCK_COUNT-2)/2; i++) {
-        lfs_testbd_setwear(cfg, (2*i) + 2, 0xffffffff) => 0;
+    for (lfs_block_t i = 0; i < (LFS_BLOCK_COUNT-2)/2; i++) {
+        lfs_testbd_setwear(&cfg, (2*i) + 2, 0xffffffff) => 0;
     }
+    
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 1; i < 10; i++) {
-        uint8_t buffer[1024];
         for (int j = 0; j < NAMEMULT; j++) {
             buffer[j] = '0'+i;
         }
@@ -195,11 +181,10 @@ code = '''
             buffer[j+NAMEMULT+1] = '0'+i;
         }
         buffer[2*NAMEMULT+1] = '\0';
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, (char*)buffer,
                 LFS_O_WRONLY | LFS_O_CREAT) => 0;
         
-        lfs_size_t size = NAMEMULT;
+        size = NAMEMULT;
         for (int j = 0; j < i*FILEMULT; j++) {
             lfs_file_write(&lfs, &file, buffer, size) => size;
         }
@@ -208,14 +193,12 @@ code = '''
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 1; i < 10; i++) {
-        uint8_t buffer[1024];
         for (int j = 0; j < NAMEMULT; j++) {
             buffer[j] = '0'+i;
         }
         buffer[NAMEMULT] = '\0';
-        struct lfs_info info;
         lfs_stat(&lfs, (char*)buffer, &info) => 0;
         info.type => LFS_TYPE_DIR;
 
@@ -224,10 +207,9 @@ code = '''
             buffer[j+NAMEMULT+1] = '0'+i;
         }
         buffer[2*NAMEMULT+1] = '\0';
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, (char*)buffer, LFS_O_RDONLY) => 0;
         
-        lfs_size_t size = NAMEMULT;
+        size = NAMEMULT;
         for (int j = 0; j < i*FILEMULT; j++) {
             uint8_t rbuffer[1024];
             lfs_file_read(&lfs, &file, rbuffer, size) => size;
@@ -240,10 +222,10 @@ code = '''
 '''
 
 # other corner cases
-[cases.bad_superblocks] # (corrupt 1 or 0)
-defines.ERASE_CYCLES = 0xffffffff
-defines.ERASE_VALUE = [0x00, 0xff, -1]
-defines.BADBLOCK_BEHAVIOR = [
+[[case]] # bad superblocks (corrupt 1 or 0)
+define.LFS_ERASE_CYCLES = 0xffffffff
+define.LFS_ERASE_VALUE = [0x00, 0xff, -1]
+define.LFS_BADBLOCK_BEHAVIOR = [
     'LFS_TESTBD_BADBLOCK_PROGERROR',
     'LFS_TESTBD_BADBLOCK_ERASEERROR',
     'LFS_TESTBD_BADBLOCK_READERROR',
@@ -251,10 +233,9 @@ defines.BADBLOCK_BEHAVIOR = [
     'LFS_TESTBD_BADBLOCK_ERASENOOP',
 ]
 code = '''
-    lfs_testbd_setwear(cfg, 0, 0xffffffff) => 0;
-    lfs_testbd_setwear(cfg, 1, 0xffffffff) => 0;
+    lfs_testbd_setwear(&cfg, 0, 0xffffffff) => 0;
+    lfs_testbd_setwear(&cfg, 1, 0xffffffff) => 0;
 
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => LFS_ERR_NOSPC;
-    lfs_mount(&lfs, cfg) => LFS_ERR_CORRUPT;
+    lfs_format(&lfs, &cfg) => LFS_ERR_NOSPC;
+    lfs_mount(&lfs, &cfg) => LFS_ERR_CORRUPT;
 '''

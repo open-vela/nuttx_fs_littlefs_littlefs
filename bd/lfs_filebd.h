@@ -1,7 +1,6 @@
 /*
  * Block device emulated in a file
  *
- * Copyright (c) 2022, The littlefs authors.
  * Copyright (c) 2017, Arm Limited. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -18,12 +17,10 @@ extern "C"
 
 
 // Block device specific tracing
-#ifndef LFS_FILEBD_TRACE
 #ifdef LFS_FILEBD_YES_TRACE
 #define LFS_FILEBD_TRACE(...) LFS_TRACE(__VA_ARGS__)
 #else
 #define LFS_FILEBD_TRACE(...)
-#endif
 #endif
 
 // filebd config (optional)
