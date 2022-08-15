@@ -606,37 +606,6 @@ int lfs_file_rewind(lfs_t *lfs, lfs_file_t *file);
 // Returns the size of the file, or a negative error code on failure.
 lfs_soff_t lfs_file_size(lfs_t *lfs, lfs_file_t *file);
 
-// Get the absolute path of the open file.
-//
-// Returns a negative error code on failure.
-int lfs_file_path(lfs_t *lfs, lfs_file_t *file, char *path, lfs_size_t size);
-
-// Get a custom attribute of file
-//
-// Custom attributes are uniquely identified by an 8-bit type and limited
-// to LFS_ATTR_MAX bytes. When read, if the stored attribute is smaller than
-// the buffer, it will be padded with zeros. If the stored attribute is larger,
-// then it will be silently truncated. If no attribute is found, the error
-// LFS_ERR_NOATTR is returned and the buffer is filled with zeros.
-//
-// Returns the size of the attribute, or a negative error code on failure.
-// Note, the returned size is the size of the attribute on disk, irrespective
-// of the size of the buffer. This can be used to dynamically allocate a buffer
-// or check for existance.
-lfs_ssize_t lfs_file_getattr(lfs_t *lfs, lfs_file_t *file,
-        uint8_t type, void *buffer, lfs_size_t size);
-
-// Set custom attributes of file
-//
-// Custom attributes are uniquely identified by an 8-bit type and limited
-// to LFS_ATTR_MAX bytes. If an attribute is not found, it will be
-// implicitly created.
-//
-// Returns a negative error code on failure.
-#ifndef LFS_READONLY
-int lfs_file_setattr(lfs_t *lfs, lfs_file_t *file,
-        uint8_t type, const void *buffer, lfs_size_t size);
-#endif
 
 /// Directory operations ///
 
@@ -687,10 +656,6 @@ lfs_soff_t lfs_dir_tell(lfs_t *lfs, lfs_dir_t *dir);
 // Returns a negative error code on failure.
 int lfs_dir_rewind(lfs_t *lfs, lfs_dir_t *dir);
 
-// Get the absolute path of the directory
-//
-// Returns a negative error code on failure.
-int lfs_dir_path(lfs_t *lfs, lfs_dir_t *dir, char *path, lfs_size_t size);
 
 /// Filesystem-level filesystem operations
 
