@@ -6,6 +6,7 @@ override BUILDDIR := $(BUILDDIR)/
 $(if $(findstring n,$(MAKEFLAGS)),, $(shell mkdir -p \
 	$(BUILDDIR) \
 	$(BUILDDIR)bd \
+	$(BUILDDIR)runners \
 	$(BUILDDIR)tests))
 endif
 
@@ -25,11 +26,24 @@ NM      ?= nm
 OBJDUMP ?= objdump
 LCOV    ?= lcov
 
-SRC ?= $(wildcard *.c)
+SRC ?= $(filter-out $(wildcard *.*.c),$(wildcard *.c))
 OBJ := $(SRC:%.c=$(BUILDDIR)%.o)
 DEP := $(SRC:%.c=$(BUILDDIR)%.d)
 ASM := $(SRC:%.c=$(BUILDDIR)%.s)
-CGI := $(SRC:%.c=$(BUILDDIR)%.ci)
+CI := $(SRC:%.c=$(BUILDDIR)%.ci)
+GCDA := $(SRC:%.c=$(BUILDDIR)%.t.a.gcda)
+
+TESTS ?= $(wildcard tests/*.toml)
+TEST_SRC ?= $(SRC) \
+		$(filter-out $(wildcard bd/*.*.c),$(wildcard bd/*.c)) \
+		runners/test_runner.c
+TEST_TC := $(TESTS:%.toml=$(BUILDDIR)%.t.c) $(TEST_SRC:%.c=$(BUILDDIR)%.t.c)
+TEST_TAC := $(TEST_TC:%.t.c=%.t.a.c)
+TEST_OBJ := $(TEST_TAC:%.t.a.c=%.t.a.o)
+TEST_DEP := $(TEST_TAC:%.t.a.c=%.t.a.d)
+TEST_CI	:= $(TEST_TAC:%.t.a.c=%.t.a.ci)
+TEST_GCNO := $(TEST_TAC:%.t.a.c=%.t.a.gcno)
+TEST_GCDA := $(TEST_TAC:%.t.a.c=%.t.a.gcda)
 
 ifdef DEBUG
 override CFLAGS += -O0
@@ -43,25 +57,26 @@ override CFLAGS += -g3
 override CFLAGS += -I.
 override CFLAGS += -std=c99 -Wall -pedantic
 override CFLAGS += -Wextra -Wshadow -Wjump-misses-init -Wundef
+override CFLAGS += -ftrack-macro-expansion=0
 
+override TESTFLAGS += -b
+# forward -j flag
+override TESTFLAGS += $(filter -j%,$(MAKEFLAGS))
 ifdef VERBOSE
 override TESTFLAGS     += -v
-override CALLSFLAGS    += -v
 override CODEFLAGS     += -v
 override DATAFLAGS     += -v
 override STACKFLAGS    += -v
 override STRUCTSFLAGS  += -v
 override COVERAGEFLAGS += -v
+override TESTFLAGS     += -v
+override TESTCFLAGS    += -v
 endif
 ifdef EXEC
-override TESTFLAGS += --exec="$(EXEC)"
-endif
-ifdef COVERAGE
-override TESTFLAGS += --coverage
+override TESTFLAGS 	   += --exec="$(EXEC)"
 endif
 ifdef BUILDDIR
 override TESTFLAGS     += --build-dir="$(BUILDDIR:/=)"
-override CALLSFLAGS    += --build-dir="$(BUILDDIR:/=)"
 override CODEFLAGS     += --build-dir="$(BUILDDIR:/=)"
 override DATAFLAGS     += --build-dir="$(BUILDDIR:/=)"
 override STACKFLAGS    += --build-dir="$(BUILDDIR:/=)"
@@ -92,16 +107,18 @@ size: $(OBJ)
 tags:
 	$(CTAGS) --totals --c-types=+p $(shell find -H -name '*.h') $(SRC)
 
-.PHONY: calls
-calls: $(CGI)
-	./scripts/calls.py $^ $(CALLSFLAGS)
+.PHONY: test-runner
+test-runner: override CFLAGS+=--coverage
+test-runner: $(BUILDDIR)runners/test_runner
 
 .PHONY: test
-test:
-	./scripts/test.py $(TESTFLAGS)
-.SECONDEXPANSION:
-test%: tests/test$$(firstword $$(subst \#, ,%)).toml
-	./scripts/test.py $@ $(TESTFLAGS)
+test: test-runner
+	rm -f $(TEST_GCDA)
+	./scripts/test.py --runner=$(BUILDDIR)runners/test_runner $(TESTFLAGS)
+
+.PHONY: test-list
+test-list: test-runner
+	./scripts/test.py --runner=$(BUILDDIR)runners/test_runner $(TESTFLAGS) -l
 
 .PHONY: code
 code: $(OBJ)
@@ -112,7 +129,7 @@ data: $(OBJ)
 	./scripts/data.py $^ -S $(DATAFLAGS)
 
 .PHONY: stack
-stack: $(CGI)
+stack: $(CI)
 	./scripts/stack.py $^ -S $(STACKFLAGS)
 
 .PHONY: structs
@@ -120,8 +137,8 @@ structs: $(OBJ)
 	./scripts/structs.py $^ -S $(STRUCTSFLAGS)
 
 .PHONY: coverage
-coverage:
-	./scripts/coverage.py $(BUILDDIR)tests/*.toml.info -s $(COVERAGEFLAGS)
+coverage: $(GCDA)
+	./scripts/coverage.py $^ -s $(COVERAGEFLAGS)
 
 .PHONY: summary
 summary: $(BUILDDIR)lfs.csv
@@ -130,7 +147,9 @@ summary: $(BUILDDIR)lfs.csv
 
 # rules
 -include $(DEP)
+-include $(TEST_DEP)
 .SUFFIXES:
+.SECONDARY:
 
 $(BUILDDIR)lfs: $(OBJ)
 	$(CC) $(CFLAGS) $^ $(LFLAGS) -o $@
@@ -138,27 +157,34 @@ $(BUILDDIR)lfs: $(OBJ)
 $(BUILDDIR)lfs.a: $(OBJ)
 	$(AR) rcs $@ $^
 
-$(BUILDDIR)lfs.csv: $(OBJ) $(CGI)
+$(BUILDDIR)lfs.csv: $(OBJ) $(CI)
 	./scripts/code.py $(OBJ) -q $(CODEFLAGS) -o $@
 	./scripts/data.py $(OBJ) -q -m $@ $(DATAFLAGS) -o $@
-	./scripts/stack.py $(CGI) -q -m $@ $(STACKFLAGS) -o $@
+	./scripts/stack.py $(CI) -q -m $@ $(STACKFLAGS) -o $@
 	./scripts/structs.py $(OBJ) -q -m $@ $(STRUCTSFLAGS) -o $@
-	$(if $(COVERAGE),\
-		./scripts/coverage.py $(BUILDDIR)tests/*.toml.info \
-			-q -m $@ $(COVERAGEFLAGS) -o $@)
 
-$(BUILDDIR)%.o: %.c
-	$(CC) -c -MMD $(CFLAGS) $< -o $@
+$(BUILDDIR)runners/test_runner: $(TEST_OBJ)
+	$(CC) $(CFLAGS) $^ $(LFLAGS) -o $@
+
+# our main build rule generates .o, .d, and .ci files, the latter
+# used for stack analysis
+$(BUILDDIR)%.o $(BUILDDIR)%.ci: %.c
+	$(CC) -c -MMD -fcallgraph-info=su $(CFLAGS) $< -o $(BUILDDIR)$*.o
 
 $(BUILDDIR)%.s: %.c
 	$(CC) -S $(CFLAGS) $< -o $@
 
-# gcc depends on the output file for intermediate file names, so
-# we can't omit to .o output. We also need to serialize with the
-# normal .o rule because otherwise we can end up with multiprocess
-# problems with two instances of gcc modifying the same .o
-$(BUILDDIR)%.ci: %.c | $(BUILDDIR)%.o
-	$(CC) -c -MMD -fcallgraph-info=su $(CFLAGS) $< -o $|
+$(BUILDDIR)%.a.c: %.c
+	./scripts/explode_asserts.py $< -o $@
+
+$(BUILDDIR)%.a.c: $(BUILDDIR)%.c
+	./scripts/explode_asserts.py $< -o $@
+
+$(BUILDDIR)%.t.c: %.toml
+	./scripts/test.py -c $< $(TESTCFLAGS) -o $@
+
+$(BUILDDIR)%.t.c: %.c $(TESTS)
+	./scripts/test.py -c $(TESTS) -s $< $(TESTCFLAGS) -o $@
 
 # clean everything
 .PHONY: clean
@@ -166,8 +192,15 @@ clean:
 	rm -f $(BUILDDIR)lfs
 	rm -f $(BUILDDIR)lfs.a
 	rm -f $(BUILDDIR)lfs.csv
+	rm -f $(BUILDDIR)runners/test_runner
 	rm -f $(OBJ)
-	rm -f $(CGI)
 	rm -f $(DEP)
 	rm -f $(ASM)
-	rm -f $(BUILDDIR)tests/*.toml.*
+	rm -f $(CI)
+	rm -f $(TEST_TC)
+	rm -f $(TEST_TAC)
+	rm -f $(TEST_OBJ)
+	rm -f $(TEST_DEP)
+	rm -f $(TEST_CI)
+	rm -f $(TEST_GCNO)
+	rm -f $(TEST_GCDA)
