@@ -15,69 +15,6 @@ import collections as co
 
 OBJ_PATHS = ['*.o']
 
-def openio(path, mode='r'):
-    if path == '-':
-        if 'r' in mode:
-            return os.fdopen(os.dup(sys.stdin.fileno()), 'r')
-        else:
-            return os.fdopen(os.dup(sys.stdout.fileno()), 'w')
-    else:
-        return open(path, mode)
-
-class StructsResult(co.namedtuple('StructsResult', 'struct_size')):
-    __slots__ = ()
-    def __new__(cls, struct_size=0):
-        return super().__new__(cls, int(struct_size))
-
-    def __add__(self, other):
-        return self.__class__(self.struct_size + other.struct_size)
-
-    def __sub__(self, other):
-        return StructsDiff(other, self)
-
-    def __rsub__(self, other):
-        return self.__class__.__sub__(other, self)
-
-    def key(self, **args):
-        if args.get('size_sort'):
-            return -self.struct_size
-        elif args.get('reverse_size_sort'):
-            return +self.struct_size
-        else:
-            return None
-
-    _header = '%7s' % 'size'
-    def __str__(self):
-        return '%7d' % self.struct_size
-
-class StructsDiff(co.namedtuple('StructsDiff',  'old,new')):
-    __slots__ = ()
-
-    def ratio(self):
-        old = self.old.struct_size if self.old is not None else 0
-        new = self.new.struct_size if self.new is not None else 0
-        return (new-old) / old if old else 1.0
-
-    def key(self, **args):
-        return (
-            self.new.key(**args) if self.new is not None else 0,
-            -self.ratio())
-
-    def __bool__(self):
-        return bool(self.ratio())
-
-    _header = '%7s %7s %7s' % ('old', 'new', 'diff')
-    def __str__(self):
-        old = self.old.struct_size if self.old is not None else 0
-        new = self.new.struct_size if self.new is not None else 0
-        diff = new - old
-        ratio = self.ratio()
-        return '%7s %7s %+7d%s' % (
-            old or "-",
-            new or "-",
-            diff,
-            ' (%+.1f%%)' % (100*ratio) if ratio else '')
-
 def collect(paths, **args):
     decl_pattern = re.compile(
         '^\s+(?P<no>[0-9]+)'
@@ -90,7 +27,7 @@ def collect(paths, **args):
             '|^.*DW_AT_decl_file.*:\s*(?P<decl>[0-9]+)\s*'
             '|^.*DW_AT_byte_size.*:\s*(?P<size>[0-9]+)\s*)$')
 
-    results = {}
+    results = co.defaultdict(lambda: 0)
     for path in paths:
         # find decl, we want to filter by structs in .h files
         decls = {}
@@ -138,18 +75,8 @@ def collect(paths, **args):
                     if (name is not None
                             and decl is not None
                             and size is not None):
-                        file = decls.get(decl, '?')
-                        # map to source file
-                        file = re.sub('\.o$', '.c', file)
-                        if args.get('build_dir'):
-                            file = re.sub(
-                                '%s/*' % re.escape(args['build_dir']), '',
-                                file)
-                        # only include structs declared in header files in the
-                        # current directory, ignore internal-only structs (
-                        # these are represented in other measurements)
-                        if args.get('everything') or file.endswith('.h'):
-                            results[(file, name)] = StructsResult(size)
+                        decl = decls.get(decl, '?')
+                        results[(decl, name)] = size
                     found = (m.group('tag') == 'structure_type')
                     name = None
                     decl = None
@@ -167,10 +94,36 @@ def collect(paths, **args):
                     sys.stdout.write(line)
             sys.exit(-1)
 
-    return results
+    flat_results = []
+    for (file, struct), size in results.items():
+        # map to source files
+        if args.get('build_dir'):
+            file = re.sub('%s/*' % re.escape(args['build_dir']), '', file)
+        # only include structs declared in header files in the current
+        # directory, ignore internal-only # structs (these are represented
+        # in other measurements)
+        if not args.get('everything'):
+            if not file.endswith('.h'):
+                continue
+        # replace .o with .c, different scripts report .o/.c, we need to
+        # choose one if we want to deduplicate csv files
+        file = re.sub('\.o$', '.c', file)
+
+        flat_results.append((file, struct, size))
+
+    return flat_results
 
 
 def main(**args):
+    def openio(path, mode='r'):
+        if path == '-':
+            if 'r' in mode:
+                return os.fdopen(os.dup(sys.stdin.fileno()), 'r')
+            else:
+                return os.fdopen(os.dup(sys.stdout.fileno()), 'w')
+        else:
+            return open(path, mode)
+
     # find sizes
     if not args.get('use', None):
         # find .o files
@@ -190,26 +143,34 @@ def main(**args):
     else:
         with openio(args['use']) as f:
             r = csv.DictReader(f)
-            results = {
-                (result['file'], result['name']): StructsResult(
-                    *(result[f] for f in StructsResult._fields))
+            results = [
+                (   result['file'],
+                    result['name'],
+                    int(result['struct_size']))
                 for result in r
-                if all(result.get(f) not in {None, ''}
-                    for f in StructsResult._fields)}
+                if result.get('struct_size') not in {None, ''}]
+
+    total = 0
+    for _, _, size in results:
+        total += size
 
     # find previous results?
     if args.get('diff'):
         try:
             with openio(args['diff']) as f:
                 r = csv.DictReader(f)
-                prev_results = {
-                    (result['file'], result['name']): StructsResult(
-                        *(result[f] for f in StructsResult._fields))
+                prev_results = [
+                    (   result['file'],
+                        result['name'],
+                        int(result['struct_size']))
                     for result in r
-                    if all(result.get(f) not in {None, ''}
-                        for f in StructsResult._fields)}
+                    if result.get('struct_size') not in {None, ''}]
         except FileNotFoundError:
             prev_results = []
+
+        prev_total = 0
+        for _, _, size in prev_results:
+            prev_total += size
 
     # write results to CSV
     if args.get('output'):
@@ -223,88 +184,112 @@ def main(**args):
                     r = csv.DictReader(f)
                     for result in r:
                         file = result.pop('file', '')
-                        func = result.pop('name', '')
-                        for f in StructsResult._fields:
-                            result.pop(f, None)
-                        merged_results[(file, func)] = result
+                        struct = result.pop('name', '')
+                        result.pop('struct_size', None)
+                        merged_results[(file, struct)] = result
                         other_fields = result.keys()
             except FileNotFoundError:
                 pass
 
-        for (file, func), result in results.items():
-            merged_results[(file, func)] |= result._asdict()
+        for file, struct, size in results:
+            merged_results[(file, struct)]['struct_size'] = size
 
         with openio(args['output'], 'w') as f:
-            w = csv.DictWriter(f, ['file', 'name',
-                *other_fields, *StructsResult._fields])
+            w = csv.DictWriter(f, ['file', 'name', *other_fields, 'struct_size'])
             w.writeheader()
-            for (file, func), result in sorted(merged_results.items()):
-                w.writerow({'file': file, 'name': func, **result})
+            for (file, struct), result in sorted(merged_results.items()):
+                w.writerow({'file': file, 'name': struct, **result})
 
     # print results
-    def print_header(by):
-        if by == 'total':
-            entry = lambda k: 'TOTAL'
-        elif by == 'file':
-            entry = lambda k: k[0]
+    def dedup_entries(results, by='name'):
+        entries = co.defaultdict(lambda: 0)
+        for file, struct, size in results:
+            entry = (file if by == 'file' else struct)
+            entries[entry] += size
+        return entries
+
+    def diff_entries(olds, news):
+        diff = co.defaultdict(lambda: (0, 0, 0, 0))
+        for name, new in news.items():
+            diff[name] = (0, new, new, 1.0)
+        for name, old in olds.items():
+            _, new, _, _ = diff[name]
+            diff[name] = (old, new, new-old, (new-old)/old if old else 1.0)
+        return diff
+
+    def sorted_entries(entries):
+        if args.get('size_sort'):
+            return sorted(entries, key=lambda x: (-x[1], x))
+        elif args.get('reverse_size_sort'):
+            return sorted(entries, key=lambda x: (+x[1], x))
         else:
-            entry = lambda k: k[1]
+            return sorted(entries)
+
+    def sorted_diff_entries(entries):
+        if args.get('size_sort'):
+            return sorted(entries, key=lambda x: (-x[1][1], x))
+        elif args.get('reverse_size_sort'):
+            return sorted(entries, key=lambda x: (+x[1][1], x))
+        else:
+            return sorted(entries, key=lambda x: (-x[1][3], x))
+
+    def print_header(by=''):
+        if not args.get('diff'):
+            print('%-36s %7s' % (by, 'size'))
+        else:
+            print('%-36s %7s %7s %7s' % (by, 'old', 'new', 'diff'))
+
+    def print_entry(name, size):
+        print("%-36s %7d" % (name, size))
+
+    def print_diff_entry(name, old, new, diff, ratio):
+        print("%-36s %7s %7s %+7d%s" % (name,
+            old or "-",
+            new or "-",
+            diff,
+            ' (%+.1f%%)' % (100*ratio) if ratio else ''))
+
+    def print_entries(by='name'):
+        entries = dedup_entries(results, by=by)
 
         if not args.get('diff'):
-            print('%-36s %s' % (by, StructsResult._header))
+            print_header(by=by)
+            for name, size in sorted_entries(entries.items()):
+                print_entry(name, size)
         else:
-            old = {entry(k) for k in results.keys()}
-            new = {entry(k) for k in prev_results.keys()}
-            print('%-36s %s' % (
-                '%s (%d added, %d removed)' % (by,
-                        sum(1 for k in new if k not in old),
-                        sum(1 for k in old if k not in new))
-                    if by else '',
-                StructsDiff._header))
+            prev_entries = dedup_entries(prev_results, by=by)
+            diff = diff_entries(prev_entries, entries)
+            print_header(by='%s (%d added, %d removed)' % (by,
+                sum(1 for old, _, _, _ in diff.values() if not old),
+                sum(1 for _, new, _, _ in diff.values() if not new)))
+            for name, (old, new, diff, ratio) in sorted_diff_entries(
+                    diff.items()):
+                if ratio or args.get('all'):
+                    print_diff_entry(name, old, new, diff, ratio)
 
-    def print_entries(by):
-        if by == 'total':
-            entry = lambda k: 'TOTAL'
-        elif by == 'file':
-            entry = lambda k: k[0]
-        else:
-            entry = lambda k: k[1]
-
-        entries = co.defaultdict(lambda: StructsResult())
-        for k, result in results.items():
-            entries[entry(k)] += result
-
+    def print_totals():
         if not args.get('diff'):
-            for name, result in sorted(entries.items(),
-                    key=lambda p: (p[1].key(**args), p)):
-                print('%-36s %s' % (name, result))
+            print_entry('TOTAL', total)
         else:
-            prev_entries = co.defaultdict(lambda: StructsResult())
-            for k, result in prev_results.items():
-                prev_entries[entry(k)] += result
-
-            diff_entries = {name: entries.get(name) - prev_entries.get(name)
-                for name in (entries.keys() | prev_entries.keys())}
-
-            for name, diff in sorted(diff_entries.items(),
-                    key=lambda p: (p[1].key(**args), p)):
-                if diff or args.get('all'):
-                    print('%-36s %s' % (name, diff))
+            ratio = (0.0 if not prev_total and not total
+                else 1.0 if not prev_total
+                else (total-prev_total)/prev_total)
+            print_diff_entry('TOTAL',
+                prev_total, total,
+                total-prev_total,
+                ratio)
 
     if args.get('quiet'):
         pass
     elif args.get('summary'):
-        print_header('')
-        print_entries('total')
+        print_header()
+        print_totals()
     elif args.get('files'):
-        print_header('file')
-        print_entries('file')
-        print_entries('total')
+        print_entries(by='file')
+        print_totals()
     else:
-        print_header('struct')
-        print_entries('struct')
-        print_entries('total')
-
+        print_entries(by='name')
+        print_totals()
 
 if __name__ == "__main__":
     import argparse
@@ -327,7 +312,7 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--merge',
         help="Merge with an existing CSV file when writing to output.")
     parser.add_argument('-a', '--all', action='store_true',
-        help="Show all structs, not just the ones that changed.")
+        help="Show all functions, not just the ones that changed.")
     parser.add_argument('-A', '--everything', action='store_true',
         help="Include builtin and libc specific symbols.")
     parser.add_argument('-s', '--size-sort', action='store_true',
@@ -343,6 +328,4 @@ if __name__ == "__main__":
     parser.add_argument('--build-dir',
         help="Specify the relative build directory. Used to map object files \
             to the correct source files.")
-    sys.exit(main(**{k: v
-        for k, v in vars(parser.parse_args()).items()
-        if v is not None}))
+    sys.exit(main(**vars(parser.parse_args())))
