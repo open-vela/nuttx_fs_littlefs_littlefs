@@ -8,6 +8,8 @@
 #ifndef LFS_H
 #define LFS_H
 
+#include <stdint.h>
+#include <stdbool.h>
 #include "lfs_util.h"
 
 #ifdef __cplusplus
