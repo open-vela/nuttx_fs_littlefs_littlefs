@@ -1,11 +1,8 @@
-[cases.test_dirs_root]
+[[case]] # root
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_format(&lfs, &cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -17,25 +14,20 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_many_creation]
-defines.N = 'range(3, 100, 3)'
-if = 'N < BLOCK_COUNT/2'
+[[case]] # many directory creation
+define.N = 'range(0, 100, 3)'
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "dir%03d", i);
         lfs_mkdir(&lfs, path) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -43,7 +35,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "dir%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -54,25 +45,20 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_many_removal]
-defines.N = 'range(3, 100, 11)'
-if = 'N < BLOCK_COUNT/2'
+[[case]] # many directory removal
+define.N = 'range(3, 100, 11)'
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "removeme%03d", i);
         lfs_mkdir(&lfs, path) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -80,7 +66,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "removeme%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -90,15 +75,14 @@ code = '''
     lfs_dir_close(&lfs, &dir) => 0;
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "removeme%03d", i);
         lfs_remove(&lfs, path) => 0;
     }
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
@@ -111,25 +95,20 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_many_rename]
-defines.N = 'range(3, 100, 11)'
-if = 'N < BLOCK_COUNT/2'
+[[case]] # many directory rename
+define.N = 'range(3, 100, 11)'
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "test%03d", i);
         lfs_mkdir(&lfs, path) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -137,7 +116,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "test%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -147,7 +125,7 @@ code = '''
     lfs_dir_close(&lfs, &dir) => 0;
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
         char oldpath[128];
         char newpath[128];
@@ -157,7 +135,7 @@ code = '''
     }
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
@@ -166,7 +144,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "tedd%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -177,34 +154,29 @@ code = '''
     lfs_unmount(&lfs);
 '''
 
-[cases.test_dirs_many_reentrant]
-defines.N = [5, 11]
+[[case]] # reentrant many directory creation/rename/removal
+define.N = [5, 11]
 reentrant = true
 code = '''
-    lfs_t lfs;
-    int err = lfs_mount(&lfs, cfg);
+    err = lfs_mount(&lfs, &cfg);
     if (err) {
-        lfs_format(&lfs, cfg) => 0;
-        lfs_mount(&lfs, cfg) => 0;
+        lfs_format(&lfs, &cfg) => 0;
+        lfs_mount(&lfs, &cfg) => 0;
     }
 
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hi%03d", i);
         err = lfs_mkdir(&lfs, path);
         assert(err == 0 || err == LFS_ERR_EXIST);
     }
 
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hello%03d", i);
         err = lfs_remove(&lfs, path);
         assert(err == 0 || err == LFS_ERR_NOENT);
     }
 
-    lfs_dir_t dir;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -212,7 +184,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hi%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -238,7 +209,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hello%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -248,7 +218,6 @@ code = '''
     lfs_dir_close(&lfs, &dir) => 0;
 
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hello%03d", i);
         lfs_remove(&lfs, path) => 0;
     }
@@ -265,28 +234,22 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_file_creation]
-defines.N = 'range(3, 100, 11)'
-if = 'N < BLOCK_COUNT/2'
+[[case]] # file creation
+define.N = 'range(3, 100, 11)'
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "file%03d", i);
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, path,
                 LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) => 0;
         lfs_file_close(&lfs, &file) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -294,7 +257,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "file%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_REG);
@@ -305,28 +267,22 @@ code = '''
     lfs_unmount(&lfs);
 '''
 
-[cases.test_dirs_file_removal]
-defines.N = 'range(3, 100, 11)'
-if = 'N < BLOCK_COUNT/2'
+[[case]] # file removal
+define.N = 'range(0, 100, 3)'
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "removeme%03d", i);
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, path,
                 LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) => 0;
         lfs_file_close(&lfs, &file) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -334,7 +290,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "removeme%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_REG);
@@ -344,15 +299,14 @@ code = '''
     lfs_dir_close(&lfs, &dir) => 0;
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "removeme%03d", i);
         lfs_remove(&lfs, path) => 0;
     }
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
@@ -365,28 +319,22 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_file_rename]
-defines.N = 'range(3, 100, 11)'
-if = 'N < BLOCK_COUNT/2'
+[[case]] # file rename
+define.N = 'range(0, 100, 3)'
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "test%03d", i);
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, path,
                 LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) => 0;
         lfs_file_close(&lfs, &file) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -394,7 +342,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "test%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_REG);
@@ -404,7 +351,7 @@ code = '''
     lfs_dir_close(&lfs, &dir) => 0;
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < N; i++) {
         char oldpath[128];
         char newpath[128];
@@ -414,7 +361,7 @@ code = '''
     }
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
@@ -423,7 +370,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "tedd%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_REG);
@@ -434,36 +380,29 @@ code = '''
     lfs_unmount(&lfs);
 '''
 
-[cases.test_dirs_file_reentrant]
-defines.N = [5, 25]
-if = 'N < BLOCK_COUNT/2'
+[[case]] # reentrant file creation/rename/removal
+define.N = [5, 25]
 reentrant = true
 code = '''
-    lfs_t lfs;
-    int err = lfs_mount(&lfs, cfg);
+    err = lfs_mount(&lfs, &cfg);
     if (err) {
-        lfs_format(&lfs, cfg) => 0;
-        lfs_mount(&lfs, cfg) => 0;
+        lfs_format(&lfs, &cfg) => 0;
+        lfs_mount(&lfs, &cfg) => 0;
     }
 
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hi%03d", i);
-        lfs_file_t file;
         lfs_file_open(&lfs, &file, path, LFS_O_CREAT | LFS_O_WRONLY) => 0;
         lfs_file_close(&lfs, &file) => 0;
     }
 
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hello%03d", i);
         err = lfs_remove(&lfs, path);
         assert(err == 0 || err == LFS_ERR_NOENT);
     }
 
-    lfs_dir_t dir;
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -471,7 +410,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hi%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_REG);
@@ -497,7 +435,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hello%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_REG);
@@ -507,7 +444,6 @@ code = '''
     lfs_dir_close(&lfs, &dir) => 0;
 
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "hello%03d", i);
         lfs_remove(&lfs, path) => 0;
     }
@@ -524,28 +460,24 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_nested]
+[[case]] # nested directories
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "potato") => 0;
-    lfs_file_t file;
     lfs_file_open(&lfs, &file, "burito",
             LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) => 0;
     lfs_file_close(&lfs, &file) => 0;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "potato/baked") => 0;
     lfs_mkdir(&lfs, "potato/sweet") => 0;
     lfs_mkdir(&lfs, "potato/fried") => 0;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
-    lfs_dir_t dir;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "potato") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(strcmp(info.name, ".") == 0);
     info.type => LFS_TYPE_DIR;
@@ -566,21 +498,21 @@ code = '''
     lfs_unmount(&lfs) => 0;
 
     // try removing?
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_remove(&lfs, "potato") => LFS_ERR_NOTEMPTY;
     lfs_unmount(&lfs) => 0;
 
     // try renaming?
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "potato", "coldpotato") => 0;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_rename(&lfs, "coldpotato", "warmpotato") => 0;
     lfs_rename(&lfs, "warmpotato", "hotpotato") => 0;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_remove(&lfs, "potato") => LFS_ERR_NOENT;
     lfs_remove(&lfs, "coldpotato") => LFS_ERR_NOENT;
     lfs_remove(&lfs, "warmpotato") => LFS_ERR_NOENT;
@@ -588,7 +520,7 @@ code = '''
     lfs_unmount(&lfs) => 0;
 
     // try cross-directory renaming
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "coldpotato") => 0;
     lfs_rename(&lfs, "hotpotato/baked", "coldpotato/baked") => 0;
     lfs_rename(&lfs, "coldpotato", "hotpotato") => LFS_ERR_NOTEMPTY;
@@ -604,7 +536,7 @@ code = '''
     lfs_remove(&lfs, "hotpotato") => LFS_ERR_NOTEMPTY;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "hotpotato") => 0;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(strcmp(info.name, ".") == 0);
@@ -626,7 +558,7 @@ code = '''
     lfs_unmount(&lfs) => 0;
     
     // final remove
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_remove(&lfs, "hotpotato") => LFS_ERR_NOTEMPTY;
     lfs_remove(&lfs, "hotpotato/baked") => 0;
     lfs_remove(&lfs, "hotpotato") => LFS_ERR_NOTEMPTY;
@@ -636,7 +568,7 @@ code = '''
     lfs_remove(&lfs, "hotpotato") => 0;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(strcmp(info.name, ".") == 0);
@@ -652,22 +584,17 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_recursive_remove]
-defines.N = [10, 100]
-if = 'N < BLOCK_COUNT/2'
+[[case]] # recursive remove
+define.N = [10, 100]
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "prickly-pear") => 0;
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "prickly-pear/cactus%03d", i);
         lfs_mkdir(&lfs, path) => 0;
     }
-    lfs_dir_t dir;
     lfs_dir_open(&lfs, &dir, "prickly-pear") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -675,7 +602,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "cactus%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -685,7 +611,7 @@ code = '''
     lfs_dir_close(&lfs, &dir) => 0;
     lfs_unmount(&lfs);
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_remove(&lfs, "prickly-pear") => LFS_ERR_NOTEMPTY;
 
     lfs_dir_open(&lfs, &dir, "prickly-pear") => 0;
@@ -696,7 +622,6 @@ code = '''
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, "..") == 0);
     for (int i = 0; i < N; i++) {
-        char path[1024];
         sprintf(path, "cactus%03d", i);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(info.type == LFS_TYPE_DIR);
@@ -711,24 +636,22 @@ code = '''
     lfs_remove(&lfs, "prickly-pear") => LFS_ERR_NOENT;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_remove(&lfs, "prickly-pear") => LFS_ERR_NOENT;
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_other_errors]
+[[case]] # other error cases
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "potato") => 0;
-    lfs_file_t file;
     lfs_file_open(&lfs, &file, "burito",
             LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) => 0;
     lfs_file_close(&lfs, &file) => 0;
     lfs_unmount(&lfs) => 0;
 
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
 
     lfs_mkdir(&lfs, "potato") => LFS_ERR_EXIST;
     lfs_mkdir(&lfs, "burito") => LFS_ERR_EXIST;
@@ -736,7 +659,6 @@ code = '''
             LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) => LFS_ERR_EXIST;
     lfs_file_open(&lfs, &file, "potato",
             LFS_O_WRONLY | LFS_O_CREAT | LFS_O_EXCL) => LFS_ERR_EXIST;
-    lfs_dir_t dir;
     lfs_dir_open(&lfs, &dir, "tomato") => LFS_ERR_NOENT;
     lfs_dir_open(&lfs, &dir, "burito") => LFS_ERR_NOTDIR;
     lfs_file_open(&lfs, &file, "tomato", LFS_O_RDONLY) => LFS_ERR_NOENT;
@@ -756,7 +678,6 @@ code = '''
 
     // check that errors did not corrupt directory
     lfs_dir_open(&lfs, &dir, "/") => 0;
-    struct lfs_info info;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
     assert(strcmp(info.name, ".") == 0);
@@ -775,7 +696,7 @@ code = '''
     lfs_unmount(&lfs) => 0;
 
     // or on disk
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_dir_open(&lfs, &dir, "/") => 0;
     lfs_dir_read(&lfs, &dir, &info) => 1;
     assert(info.type == LFS_TYPE_DIR);
@@ -794,26 +715,21 @@ code = '''
     lfs_unmount(&lfs) => 0;
 '''
 
-[cases.test_dirs_seek]
-defines.COUNT = [4, 128, 132]
-if = 'COUNT < BLOCK_COUNT/2'
+[[case]] # directory seek
+define.COUNT = [4, 128, 132]
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     lfs_mkdir(&lfs, "hello") => 0;
     for (int i = 0; i < COUNT; i++) {
-        char path[1024];
         sprintf(path, "hello/kitty%03d", i);
         lfs_mkdir(&lfs, path) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
     for (int j = 2; j < COUNT; j++) {
-        lfs_mount(&lfs, cfg) => 0;
-        lfs_dir_t dir;
+        lfs_mount(&lfs, &cfg) => 0;
         lfs_dir_open(&lfs, &dir, "hello") => 0;
-        struct lfs_info info;
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(strcmp(info.name, ".") == 0);
         assert(info.type == LFS_TYPE_DIR);
@@ -823,7 +739,6 @@ code = '''
 
         lfs_soff_t pos;
         for (int i = 0; i < j; i++) {
-            char path[1024];
             sprintf(path, "kitty%03d", i);
             lfs_dir_read(&lfs, &dir, &info) => 1;
             assert(strcmp(info.name, path) == 0);
@@ -833,14 +748,13 @@ code = '''
         }
 
         lfs_dir_seek(&lfs, &dir, pos) => 0;
-        char path[1024];
         sprintf(path, "kitty%03d", j);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(strcmp(info.name, path) == 0);
         assert(info.type == LFS_TYPE_DIR);
 
         lfs_dir_rewind(&lfs, &dir) => 0;
-        sprintf(path, "kitty%03u", 0);
+        sprintf(path, "kitty%03d", 0);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(strcmp(info.name, ".") == 0);
         assert(info.type == LFS_TYPE_DIR);
@@ -862,25 +776,20 @@ code = '''
     }
 '''
 
-[cases.test_dirs_toot_seek]
-defines.COUNT = [4, 128, 132]
-if = 'COUNT < BLOCK_COUNT/2'
+[[case]] # root seek
+define.COUNT = [4, 128, 132]
 code = '''
-    lfs_t lfs;
-    lfs_format(&lfs, cfg) => 0;
-    lfs_mount(&lfs, cfg) => 0;
+    lfs_format(&lfs, &cfg) => 0;
+    lfs_mount(&lfs, &cfg) => 0;
     for (int i = 0; i < COUNT; i++) {
-        char path[1024];
         sprintf(path, "hi%03d", i);
         lfs_mkdir(&lfs, path) => 0;
     }
     lfs_unmount(&lfs) => 0;
 
     for (int j = 2; j < COUNT; j++) {
-        lfs_mount(&lfs, cfg) => 0;
-        lfs_dir_t dir;
+        lfs_mount(&lfs, &cfg) => 0;
         lfs_dir_open(&lfs, &dir, "/") => 0;
-        struct lfs_info info;
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(strcmp(info.name, ".") == 0);
         assert(info.type == LFS_TYPE_DIR);
@@ -890,7 +799,6 @@ code = '''
 
         lfs_soff_t pos;
         for (int i = 0; i < j; i++) {
-            char path[1024];
             sprintf(path, "hi%03d", i);
             lfs_dir_read(&lfs, &dir, &info) => 1;
             assert(strcmp(info.name, path) == 0);
@@ -900,14 +808,13 @@ code = '''
         }
 
         lfs_dir_seek(&lfs, &dir, pos) => 0;
-        char path[1024];
         sprintf(path, "hi%03d", j);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(strcmp(info.name, path) == 0);
         assert(info.type == LFS_TYPE_DIR);
 
         lfs_dir_rewind(&lfs, &dir) => 0;
-        sprintf(path, "hi%03u", 0);
+        sprintf(path, "hi%03d", 0);
         lfs_dir_read(&lfs, &dir, &info) => 1;
         assert(strcmp(info.name, ".") == 0);
         assert(info.type == LFS_TYPE_DIR);

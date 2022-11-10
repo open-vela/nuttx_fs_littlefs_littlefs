@@ -21,119 +21,71 @@ extern "C"
 
 
 // Block device specific tracing
-#ifndef LFS_TESTBD_TRACE
 #ifdef LFS_TESTBD_YES_TRACE
 #define LFS_TESTBD_TRACE(...) LFS_TRACE(__VA_ARGS__)
 #else
 #define LFS_TESTBD_TRACE(...)
 #endif
-#endif
 
-// Mode determining how "bad-blocks" behave during testing. This simulates
+// Mode determining how "bad blocks" behave during testing. This simulates
 // some real-world circumstances such as progs not sticking (prog-noop),
 // a readonly disk (erase-noop), and ECC failures (read-error).
 //
 // Not that read-noop is not allowed. Read _must_ return a consistent (but
 // may be arbitrary) value on every read.
-typedef enum lfs_testbd_badblock_behavior {
+enum lfs_testbd_badblock_behavior {
     LFS_TESTBD_BADBLOCK_PROGERROR,
     LFS_TESTBD_BADBLOCK_ERASEERROR,
     LFS_TESTBD_BADBLOCK_READERROR,
     LFS_TESTBD_BADBLOCK_PROGNOOP,
     LFS_TESTBD_BADBLOCK_ERASENOOP,
-} lfs_testbd_badblock_behavior_t;
-
-// Mode determining how power-loss behaves during testing. For now this
-// only supports a noop behavior, leaving the data on-disk untouched.
-typedef enum lfs_testbd_powerloss_behavior {
-    LFS_TESTBD_POWERLOSS_NOOP,
-} lfs_testbd_powerloss_behavior_t;
+};
 
 // Type for measuring wear
 typedef uint32_t lfs_testbd_wear_t;
-typedef int32_t lfs_testbd_swear_t;
-
-// Type for tracking power-cycles
-typedef uint32_t lfs_testbd_powercycles_t;
-typedef int32_t lfs_testbd_spowercycles_t;
-
-// Type for delays in nanoseconds
-typedef uint64_t lfs_testbd_sleep_t;
-typedef int64_t lfs_testbd_ssleep_t;
+typedef int32_t  lfs_testbd_swear_t;
 
 // testbd config, this is required for testing
 struct lfs_testbd_config {
     // 8-bit erase value to use for simulating erases. -1 does not simulate
-    // erases, which can speed up testing by avoiding the extra block-device
+    // erases, which can speed up testing by avoiding all the extra block-device
     // operations to store the erase value.
     int32_t erase_value;
 
     // Number of erase cycles before a block becomes "bad". The exact behavior
-    // of bad blocks is controlled by badblock_behavior.
+    // of bad blocks is controlled by the badblock_mode.
     uint32_t erase_cycles;
 
-    // The mode determining how bad-blocks fail
-    lfs_testbd_badblock_behavior_t badblock_behavior;
+    // The mode determining how bad blocks fail
+    uint8_t badblock_behavior;
 
-    // Number of write operations (erase/prog) before triggering a power-loss.
-    // power_cycles=0 disables this. The exact behavior of power-loss is
-    // controlled by a combination of powerloss_behavior and powerloss_cb.
-    lfs_testbd_powercycles_t power_cycles;
+    // Number of write operations (erase/prog) before forcefully killing
+    // the program with exit. Simulates power-loss. 0 disables.
+    uint32_t power_cycles;
 
-    // The mode determining how power-loss affects disk
-    lfs_testbd_powerloss_behavior_t powerloss_behavior;
+    // Optional buffer for RAM block device.
+    void *buffer;
 
-    // Function to call to emulate power-loss. The exact behavior of power-loss
-    // is up to the runner to provide.
-    void (*powerloss_cb)(void*);
-
-    // Data for power-loss callback
-    void *powerloss_data;
-
-    // True to track when power-loss could have occured. Note this involves 
-    // heavy memory usage!
-    bool track_branches;
-
-    // Path to file to use as a mirror of the disk. This provides a way to view
-    // the current state of the block device.
-    const char *disk_path;
-
-    // Artificial delay in nanoseconds, there is no purpose for this other
-    // than slowing down the simulation.
-    lfs_testbd_sleep_t read_sleep;
-
-    // Artificial delay in nanoseconds, there is no purpose for this other
-    // than slowing down the simulation.
-    lfs_testbd_sleep_t prog_sleep;
-
-    // Artificial delay in nanoseconds, there is no purpose for this other
-    // than slowing down the simulation.
-    lfs_testbd_sleep_t erase_sleep;
+    // Optional buffer for wear
+    void *wear_buffer;
 };
-
-// A reference counted block
-typedef struct lfs_testbd_block {
-    uint32_t rc;
-    lfs_testbd_wear_t wear;
-
-    uint8_t data[];
-} lfs_testbd_block_t;
-
-// Disk mirror
-typedef struct lfs_testbd_disk {
-    uint32_t rc;
-    int fd;
-    uint8_t *scratch;
-} lfs_testbd_disk_t;
 
 // testbd state
 typedef struct lfs_testbd {
-    // array of copy-on-write blocks
-    lfs_testbd_block_t **blocks;
+    union {
+        struct {
+            lfs_filebd_t bd;
+            struct lfs_filebd_config cfg;
+        } file;
+        struct {
+            lfs_rambd_t bd;
+            struct lfs_rambd_config cfg;
+        } ram;
+    } u;
 
-    // some other test state
+    bool persist;
     uint32_t power_cycles;
-    lfs_testbd_disk_t *disk;
+    lfs_testbd_wear_t *wear;
 
     const struct lfs_testbd_config *cfg;
 } lfs_testbd_t;
@@ -181,17 +133,6 @@ lfs_testbd_swear_t lfs_testbd_getwear(const struct lfs_config *cfg,
 // Manually set simulated wear on a given block
 int lfs_testbd_setwear(const struct lfs_config *cfg,
         lfs_block_t block, lfs_testbd_wear_t wear);
-
-// Get the remaining power-cycles
-lfs_testbd_spowercycles_t lfs_testbd_getpowercycles(
-        const struct lfs_config *cfg);
-
-// Manually set the remaining power-cycles
-int lfs_testbd_setpowercycles(const struct lfs_config *cfg,
-        lfs_testbd_powercycles_t power_cycles);
-
-// Create a copy-on-write copy of the state of this block device
-int lfs_testbd_copy(const struct lfs_config *cfg, lfs_testbd_t *copy);
 
 
 #ifdef __cplusplus
