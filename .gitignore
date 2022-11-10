@@ -4,10 +4,6 @@
 *.a
 *.ci
 *.csv
-*.t.c
-*.a.c
-*.gcno
-*.gcda
 
 # Testing things
 blocks/
@@ -16,4 +12,3 @@ test.c
 tests/*.toml.*
 scripts/__pycache__
 .gdb_history
-runners/test_runner
