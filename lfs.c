@@ -4276,11 +4276,9 @@ static int lfs_rawmount(lfs_t *lfs, const struct lfs_config *cfg) {
                 if (superblock.name_max > lfs->name_max) {
                     LFS_ERROR("Unsupported name_max (%"PRIu32" > %"PRIu32")",
                             superblock.name_max, lfs->name_max);
-                    err = LFS_ERR_INVAL;
-                    goto cleanup;
                 }
 
-                lfs->name_max = superblock.name_max;
+                superblock.name_max = lfs->name_max;
             }
 
             if (superblock.file_max) {
