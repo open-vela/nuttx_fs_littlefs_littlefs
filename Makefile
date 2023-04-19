@@ -17,62 +17,44 @@ TARGET ?= $(BUILDDIR)lfs.a
 endif
 
 
-CC      ?= gcc
-AR      ?= ar
-SIZE    ?= size
-CTAGS   ?= ctags
-NM      ?= nm
-OBJDUMP ?= objdump
-LCOV    ?= lcov
+CC ?= gcc
+AR ?= ar
+SIZE ?= size
+CTAGS ?= ctags
+NM ?= nm
+LCOV ?= lcov
 
 SRC ?= $(wildcard *.c)
 OBJ := $(SRC:%.c=$(BUILDDIR)%.o)
 DEP := $(SRC:%.c=$(BUILDDIR)%.d)
 ASM := $(SRC:%.c=$(BUILDDIR)%.s)
-CGI := $(SRC:%.c=$(BUILDDIR)%.ci)
 
 ifdef DEBUG
-override CFLAGS += -O0
+override CFLAGS += -O0 -g3
 else
 override CFLAGS += -Os
 endif
 ifdef TRACE
 override CFLAGS += -DLFS_YES_TRACE
 endif
-override CFLAGS += -g3
 override CFLAGS += -I.
-override CFLAGS += -std=c99 -Wall -Wextra -pedantic
+override CFLAGS += -std=c99 -Wall -pedantic
+override CFLAGS += -Wextra -Wshadow -Wjump-misses-init -Wundef
 
 ifdef VERBOSE
-override TESTFLAGS     += -v
-override CALLSFLAGS    += -v
-override CODEFLAGS     += -v
-override DATAFLAGS     += -v
-override STACKFLAGS    += -v
-override STRUCTSFLAGS  += -v
+override TESTFLAGS += -v
+override CODEFLAGS += -v
 override COVERAGEFLAGS += -v
 endif
 ifdef EXEC
 override TESTFLAGS += --exec="$(EXEC)"
 endif
-ifdef COVERAGE
-override TESTFLAGS += --coverage
-endif
 ifdef BUILDDIR
-override TESTFLAGS     += --build-dir="$(BUILDDIR:/=)"
-override CALLSFLAGS    += --build-dir="$(BUILDDIR:/=)"
-override CODEFLAGS     += --build-dir="$(BUILDDIR:/=)"
-override DATAFLAGS     += --build-dir="$(BUILDDIR:/=)"
-override STACKFLAGS    += --build-dir="$(BUILDDIR:/=)"
-override STRUCTSFLAGS  += --build-dir="$(BUILDDIR:/=)"
-override COVERAGEFLAGS += --build-dir="$(BUILDDIR:/=)"
+override TESTFLAGS += --build-dir="$(BUILDDIR:/=)"
+override CODEFLAGS += --build-dir="$(BUILDDIR:/=)"
 endif
 ifneq ($(NM),nm)
 override CODEFLAGS += --nm-tool="$(NM)"
-override DATAFLAGS += --nm-tool="$(NM)"
-endif
-ifneq ($(OBJDUMP),objdump)
-override STRUCTSFLAGS += --objdump-tool="$(OBJDUMP)"
 endif
 
 
@@ -91,9 +73,9 @@ size: $(OBJ)
 tags:
 	$(CTAGS) --totals --c-types=+p $(shell find -H -name '*.h') $(SRC)
 
-.PHONY: calls
-calls: $(CGI)
-	./scripts/calls.py $^ $(CALLSFLAGS)
+.PHONY: code
+code: $(OBJ)
+	./scripts/code.py $^ $(CODEFLAGS)
 
 .PHONY: test
 test:
@@ -102,30 +84,9 @@ test:
 test%: tests/test$$(firstword $$(subst \#, ,%)).toml
 	./scripts/test.py $@ $(TESTFLAGS)
 
-.PHONY: code
-code: $(OBJ)
-	./scripts/code.py $^ -S $(CODEFLAGS)
-
-.PHONY: data
-data: $(OBJ)
-	./scripts/data.py $^ -S $(DATAFLAGS)
-
-.PHONY: stack
-stack: $(CGI)
-	./scripts/stack.py $^ -S $(STACKFLAGS)
-
-.PHONY: structs
-structs: $(OBJ)
-	./scripts/structs.py $^ -S $(STRUCTSFLAGS)
-
 .PHONY: coverage
 coverage:
-	./scripts/coverage.py $(BUILDDIR)tests/*.toml.info -s $(COVERAGEFLAGS)
-
-.PHONY: summary
-summary: $(BUILDDIR)lfs.csv
-	./scripts/summary.py -Y $^ $(SUMMARYFLAGS)
-
+	./scripts/coverage.py $(BUILDDIR)tests/*.toml.info $(COVERAGEFLAGS)
 
 # rules
 -include $(DEP)
@@ -134,17 +95,8 @@ summary: $(BUILDDIR)lfs.csv
 $(BUILDDIR)lfs: $(OBJ)
 	$(CC) $(CFLAGS) $^ $(LFLAGS) -o $@
 
-$(BUILDDIR)lfs.a: $(OBJ)
+$(BUILDDIR)%.a: $(OBJ)
 	$(AR) rcs $@ $^
-
-$(BUILDDIR)lfs.csv: $(OBJ) $(CGI)
-	./scripts/code.py $(OBJ) -q $(CODEFLAGS) -o $@
-	./scripts/data.py $(OBJ) -q -m $@ $(DATAFLAGS) -o $@
-	./scripts/stack.py $(CGI) -q -m $@ $(STACKFLAGS) -o $@
-	./scripts/structs.py $(OBJ) -q -m $@ $(STRUCTSFLAGS) -o $@
-	$(if $(COVERAGE),\
-		./scripts/coverage.py $(BUILDDIR)tests/*.toml.info \
-			-q -m $@ $(COVERAGEFLAGS) -o $@)
 
 $(BUILDDIR)%.o: %.c
 	$(CC) -c -MMD $(CFLAGS) $< -o $@
@@ -152,21 +104,11 @@ $(BUILDDIR)%.o: %.c
 $(BUILDDIR)%.s: %.c
 	$(CC) -S $(CFLAGS) $< -o $@
 
-# gcc depends on the output file for intermediate file names, so
-# we can't omit to .o output. We also need to serialize with the
-# normal .o rule because otherwise we can end up with multiprocess
-# problems with two instances of gcc modifying the same .o
-$(BUILDDIR)%.ci: %.c | $(BUILDDIR)%.o
-	$(CC) -c -MMD -fcallgraph-info=su $(CFLAGS) $< -o $|
-
 # clean everything
 .PHONY: clean
 clean:
-	rm -f $(BUILDDIR)lfs
-	rm -f $(BUILDDIR)lfs.a
-	rm -f $(BUILDDIR)lfs.csv
+	rm -f $(TARGET)
 	rm -f $(OBJ)
-	rm -f $(CGI)
 	rm -f $(DEP)
 	rm -f $(ASM)
 	rm -f $(BUILDDIR)tests/*.toml.*
