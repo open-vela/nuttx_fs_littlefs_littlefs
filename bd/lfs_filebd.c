@@ -1,7 +1,6 @@
 /*
  * Block device emulated in a file
  *
- * Copyright (c) 2022, The littlefs authors.
  * Copyright (c) 2017, Arm Limited. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -10,10 +9,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 int lfs_filebd_createcfg(const struct lfs_config *cfg, const char *path,
         const struct lfs_filebd_config *bdcfg) {
@@ -32,12 +27,7 @@ int lfs_filebd_createcfg(const struct lfs_config *cfg, const char *path,
     bd->cfg = bdcfg;
 
     // open file
-    #ifdef _WIN32
-    bd->fd = open(path, O_RDWR | O_CREAT | O_BINARY, 0666);
-    #else
     bd->fd = open(path, O_RDWR | O_CREAT, 0666);
-    #endif
-
     if (bd->fd < 0) {
         int err = -errno;
         LFS_FILEBD_TRACE("lfs_filebd_createcfg -> %d", err);
@@ -90,7 +80,7 @@ int lfs_filebd_read(const struct lfs_config *cfg, lfs_block_t block,
     LFS_ASSERT(size % cfg->read_size == 0);
     LFS_ASSERT(block < cfg->block_count);
 
-    // zero for reproducibility (in case file is truncated)
+    // zero for reproducability (in case file is truncated)
     if (bd->cfg->erase_value != -1) {
         memset(buffer, bd->cfg->erase_value, size);
     }
@@ -203,11 +193,7 @@ int lfs_filebd_sync(const struct lfs_config *cfg) {
     LFS_FILEBD_TRACE("lfs_filebd_sync(%p)", (void*)cfg);
     // file sync
     lfs_filebd_t *bd = cfg->context;
-    #ifdef _WIN32
-    int err = FlushFileBuffers((HANDLE) _get_osfhandle(bd->fd)) ? 0 : -1;
-    #else
     int err = fsync(bd->fd);
-    #endif
     if (err) {
         err = -errno;
         LFS_FILEBD_TRACE("lfs_filebd_sync -> %d", 0);
