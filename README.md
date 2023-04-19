@@ -227,9 +227,6 @@ License Identifiers that are here available: http://spdx.org/licenses/
   your needs, create images for a later download to the target memory or
   inspect the content of a binary image of the target memory.
 
-- [littlefs-disk-img-viewer] - A memory-efficient web application for viewing
-  littlefs disk images in your web browser.
-
 - [mklfs] - A command line tool built by the [Lua RTOS] guys for making
   littlefs images from a host PC. Supports Windows, Mac OS, and Linux.
 
@@ -248,7 +245,6 @@ License Identifiers that are here available: http://spdx.org/licenses/
 
 
 [BSD-3-Clause]: https://spdx.org/licenses/BSD-3-Clause.html
-[littlefs-disk-img-viewer]: https://github.com/tniessen/littlefs-disk-img-viewer
 [littlefs-fuse]: https://github.com/geky/littlefs-fuse
 [FUSE]: https://github.com/libfuse/libfuse
 [littlefs-js]: https://github.com/geky/littlefs-js
@@ -256,7 +252,7 @@ License Identifiers that are here available: http://spdx.org/licenses/
 [mklfs]: https://github.com/whitecatboard/Lua-RTOS-ESP32/tree/master/components/mklfs/src
 [Lua RTOS]: https://github.com/whitecatboard/Lua-RTOS-ESP32
 [Mbed OS]: https://github.com/armmbed/mbed-os
-[LittleFileSystem]: https://os.mbed.com/docs/mbed-os/v5.12/apis/littlefilesystem.html
+[LittleFileSystem]: https://os.mbed.com/docs/mbed-os/latest/apis/littlefilesystem.html
 [SPIFFS]: https://github.com/pellepl/spiffs
 [Dhara]: https://github.com/dlbeer/dhara
 [littlefs-python]: https://pypi.org/project/littlefs-python/
