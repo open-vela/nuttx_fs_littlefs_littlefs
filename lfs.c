@@ -1957,7 +1957,7 @@ static int lfs_dir_compact(lfs_t *lfs,
                     lfs_dir_commit_commit, &(struct lfs_dir_commit_commit){
                         lfs, &commit});
             if (err) {
-                if (err == LFS_ERR_CORRUPT) {
+                if (err == LFS_ERR_CORRUPT || err == LFS_ERR_NOSPC) {
                     goto relocate;
                 }
                 return err;
@@ -1971,7 +1971,7 @@ static int lfs_dir_compact(lfs_t *lfs,
                         dir->tail);
                 lfs_pair_fromle32(dir->tail);
                 if (err) {
-                    if (err == LFS_ERR_CORRUPT) {
+                    if (err == LFS_ERR_CORRUPT || err == LFS_ERR_NOSPC) {
                         goto relocate;
                     }
                     return err;
