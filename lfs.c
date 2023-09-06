@@ -1616,6 +1616,7 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
 
     lfs_off_t off1 = 0;
     uint32_t crc1 = 0;
+    int err;
 
     // create crc tags to fill up remainder of commit, note that
     // padding is not crced, which lets fetches skip padding but
@@ -1634,7 +1635,7 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
         if (noff >= end && noff <= lfs->cfg->block_size - lfs->cfg->prog_size) {
             // first read the leading byte, this always contains a bit
             // we can perturb to avoid writes that don't change the fcrc
-            int err = lfs_bd_read(lfs,
+            err = lfs_bd_read(lfs,
                     NULL, &lfs->rcache, lfs->cfg->prog_size,
                     commit->block, noff, &eperturb, 1);
             if (err && err != LFS_ERR_CORRUPT) {
@@ -1684,7 +1685,7 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
         commit->crc = lfs_crc(commit->crc, &ccrc.tag, sizeof(lfs_tag_t));
         ccrc.crc = lfs_tole32(commit->crc);
 
-        int err = lfs_bd_prog(lfs,
+        err = lfs_bd_prog(lfs,
                 &lfs->pcache, &lfs->rcache, false,
                 commit->block, commit->off, &ccrc, sizeof(ccrc));
         if (err) {
@@ -1707,7 +1708,7 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
         // the caching layer
         if (noff >= end || noff >= lfs->pcache.off + lfs->cfg->cache_size) {
             // flush buffers
-            int err = lfs_bd_sync(lfs, &lfs->pcache, &lfs->rcache, false);
+            err = lfs_bd_sync(lfs, &lfs->pcache, &lfs->rcache, false);
             if (err) {
                 return err;
             }
@@ -1720,7 +1721,7 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
     // case if they are corrupted we would have had to compact anyways
     lfs_off_t off = commit->begin;
     uint32_t crc = 0xffffffff;
-    int err = lfs_bd_crc(lfs,
+    err = lfs_bd_crc(lfs,
             NULL, &lfs->rcache, off1+sizeof(uint32_t),
             commit->block, off, off1-off, &crc);
     if (err) {
@@ -1751,9 +1752,11 @@ static int lfs_dir_commitcrc(lfs_t *lfs, struct lfs_commit *commit) {
 
 #ifndef LFS_READONLY
 static int lfs_dir_alloc(lfs_t *lfs, lfs_mdir_t *dir) {
+    int err;
+
     // allocate pair of dir blocks (backwards, so we write block 1 first)
     for (int i = 0; i < 2; i++) {
-        int err = lfs_alloc(lfs, &dir->pair[(i+1)%2]);
+        err = lfs_alloc(lfs, &dir->pair[(i+1)%2]);
         if (err) {
             return err;
         }
@@ -1764,7 +1767,7 @@ static int lfs_dir_alloc(lfs_t *lfs, lfs_mdir_t *dir) {
 
     // rather than clobbering one of the blocks we just pretend
     // the revision may be valid
-    int err = lfs_bd_read(lfs,
+    err = lfs_bd_read(lfs,
             NULL, &lfs->rcache, sizeof(dir->rev),
             dir->pair[0], 0, &dir->rev, sizeof(dir->rev));
     dir->rev = lfs_fromle32(dir->rev);
